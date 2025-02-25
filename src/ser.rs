@@ -16,8 +16,8 @@ where
     W: Write,
 {
     writer: W,
-    size: usize,
     buffer: Vec<u8>,
+    size: usize,
 }
 
 impl<W> ReverseSerializer<W>
@@ -34,7 +34,16 @@ where
         Self {
             writer,
             size: 0,
-            buffer: Vec::with_capacity(1000),
+            buffer: Vec::with_capacity(32/*default capacity*/),
+        }
+    }
+
+    #[inline]
+    pub fn with_capacity(writer: W, capacity: usize) -> Self {
+        Self {
+            writer,
+            size: 0,
+            buffer: Vec::with_capacity(capacity),
         }
     }
 
@@ -203,24 +212,52 @@ where
         let bytes = v.as_bytes();
         let size = bytes.len();
         let (header, header_size) = generate_reverse_header(prefix::STRING, size);
-        self.buffer.clear();
-        self.buffer.extend_from_slice(&header[..header_size]);
-        self.buffer.extend_from_slice(bytes);
-        self.buffer.reverse();
-        self.writer.write_all(&self.buffer).map_err(Error::io)?;
+        self.buffer.truncate(0);
+        // 文字列データを逆順に格納
+        for &b in bytes.iter().rev() {
+            self.buffer.push(b);
+            if self.buffer.len() == self.buffer.capacity() {
+                self.writer.write_all(&self.buffer).map_err(Error::io)?;
+                self.buffer.truncate(0);
+            }
+        }
+        for &b in header[..header_size].iter().rev() {
+            self.buffer.push(b);
+            if self.buffer.len() == self.buffer.capacity() {
+                self.writer.write_all(&self.buffer).map_err(Error::io)?;
+                self.buffer.truncate(0);
+            }
+        }
+        if self.buffer.len() > 0 {
+            self.writer.write_all(&self.buffer).map_err(Error::io)?;
+        }
         self.size += size + header_size;
         Ok(())
     }
-
+    
     #[inline]
     fn serialize_bytes(self, v: &[u8]) -> Result<Self::Ok, Self::Error> {
         let size = v.len();
         let (header, header_size) = generate_reverse_header(prefix::BYTES, size);
-        self.buffer.clear();
-        self.buffer.extend_from_slice(&header[..header_size]);
-        self.buffer.extend_from_slice(v);
-        self.buffer.reverse();
-        self.writer.write_all(&self.buffer).map_err(Error::io)?;
+        self.buffer.truncate(0);
+        // バイトデータを逆順に格納
+        for &b in v.iter().rev() {
+            self.buffer.push(b);
+            if self.buffer.len() == self.buffer.capacity() {
+                self.writer.write_all(&self.buffer).map_err(Error::io)?;
+                self.buffer.truncate(0);
+            }
+        }
+        for &b in header[..header_size].iter().rev() {
+            self.buffer.push(b);
+            if self.buffer.len() == self.buffer.capacity() {
+                self.writer.write_all(&self.buffer).map_err(Error::io)?;
+                self.buffer.truncate(0);
+            }
+        }
+        if self.buffer.len() > 0 {
+            self.writer.write_all(&self.buffer).map_err(Error::io)?;
+        }
         self.size += size + header_size;
         Ok(())
     }
@@ -389,9 +426,10 @@ where
         // シーケンスの合計サイズを計算
         let seq_size = self.ser.size - self.start_pos;
         // ヘッダを生成
-        let (header, header_size) = generate_reverse_header(prefix::ARRAY, seq_size);
+        let (mut header, header_size) = generate_reverse_header(prefix::ARRAY, seq_size);
         // ヘッダを書き込み
-        self.ser.writer.write_all(&header[..header_size]).map_err(Error::io)?;
+        header.reverse();
+        self.ser.writer.write_all(&header[header_size..]).map_err(Error::io)?;
         // ヘッダ分のサイズを加算
         self.ser.size += header_size;
         Ok(())
@@ -419,9 +457,10 @@ where
         // シーケンスの合計サイズを計算
         let seq_size = self.ser.size - self.start_pos;
         // ヘッダを生成
-        let (header, header_size) = generate_reverse_header(prefix::ARRAY, seq_size);
+        let (mut header, header_size) = generate_reverse_header(prefix::ARRAY, seq_size);
         // ヘッダを書き込み
-        self.ser.writer.write_all(&header[..header_size]).map_err(Error::io)?;
+        header.reverse();
+        self.ser.writer.write_all(&header[header_size..]).map_err(Error::io)?;
         // ヘッダ分のサイズを加算
         self.ser.size += header_size;
         Ok(())
@@ -449,9 +488,10 @@ where
         // シーケンスの合計サイズを計算
         let seq_size = self.ser.size - self.start_pos;
         // ヘッダを生成
-        let (header, header_size) = generate_reverse_header(prefix::ARRAY, seq_size);
+        let (mut header, header_size) = generate_reverse_header(prefix::ARRAY, seq_size);
         // ヘッダを書き込み
-        self.ser.writer.write_all(&header[..header_size]).map_err(Error::io)?;
+        header.reverse();
+        self.ser.writer.write_all(&header[header_size..]).map_err(Error::io)?;
         // ヘッダ分のサイズを加算
         self.ser.size += header_size;
         Ok(())
@@ -532,9 +572,10 @@ where
         // Mapの合計サイズを計算
         let seq_size = self.ser.size - self.start_pos;
         // ヘッダを生成
-        let (header, header_size) = generate_reverse_header(prefix::OBJECT, seq_size);
+        let (mut header, header_size) = generate_reverse_header(prefix::OBJECT, seq_size);
         // ヘッダを書き込み
-        self.ser.writer.write_all(&header[..header_size]).map_err(Error::io)?;
+        header.reverse();
+        self.ser.writer.write_all(&header[header_size..]).map_err(Error::io)?;
         // ヘッダ分のサイズを加算
         self.ser.size += header_size;
         Ok(())
@@ -564,9 +605,10 @@ where
         // Structの合計サイズを計算
         let seq_size = self.ser.size - self.start_pos;
         // ヘッダを生成
-        let (header, header_size) = generate_reverse_header(prefix::OBJECT, seq_size);
+        let (mut header, header_size) = generate_reverse_header(prefix::OBJECT, seq_size);
         // ヘッダを書き込み
-        self.ser.writer.write_all(&header[..header_size]).map_err(Error::io)?;
+        header.reverse();
+        self.ser.writer.write_all(&header[header_size..]).map_err(Error::io)?;
         // ヘッダ分のサイズを加算
         self.ser.size += header_size;
         Ok(())
@@ -596,9 +638,10 @@ where
         // Structの合計サイズを計算
         let seq_size = self.ser.size - self.start_pos;
         // ヘッダを生成
-        let (header, header_size) = generate_reverse_header(prefix::OBJECT, seq_size);
+        let (mut header, header_size) = generate_reverse_header(prefix::OBJECT, seq_size);
         // ヘッダを書き込み
-        self.ser.writer.write_all(&header[..header_size]).map_err(Error::io)?;
+        header.reverse();
+        self.ser.writer.write_all(&header[header_size..]).map_err(Error::io)?;
         // ヘッダ分のサイズを加算
         self.ser.size += header_size;
         Ok(())
