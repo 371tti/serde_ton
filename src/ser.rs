@@ -17,6 +17,7 @@ where
 {
     writer: W,
     size: usize,
+    buffer: Vec<u8>,
 }
 
 impl<W> ReverseSerializer<W>
@@ -33,6 +34,7 @@ where
         Self {
             writer,
             size: 0,
+            buffer: Vec::with_capacity(1000),
         }
     }
 
@@ -78,131 +80,148 @@ where
 
     #[inline]
     fn serialize_i8(self, v: i8) -> Result<Self::Ok, Self::Error> {
-        let bytes = v.to_le_bytes();
-        self.writer.write_all(&bytes).map_err(Error::io)?;
-        self.writer.write_all(&[prefix::INT | SIZE_PREFIX_1BYTE]).map_err(Error::io)?;
+        let mut buf: [u8; 2] = [0; 2];
+        buf[0] = v.to_le() as u8;
+        buf[1] = prefix::INT | SIZE_PREFIX_1BYTE;
+        self.writer.write_all(&buf).map_err(Error::io)?;
         self.size += 2;
         Ok(())
     }
 
     #[inline]
     fn serialize_i16(self, v: i16) -> Result<Self::Ok, Self::Error> {
-        let mut bytes = v.to_le_bytes();
-        bytes.reverse();
-        self.writer.write_all(&bytes).map_err(Error::io)?;
-        self.writer.write_all(&[prefix::INT | SIZE_PREFIX_2BYTE]).map_err(Error::io)?;
+        let mut buf: [u8; 3] = [0; 3];
+        buf[0] = prefix::INT | SIZE_PREFIX_2BYTE;
+        buf[1..3].copy_from_slice(&v.to_le_bytes());
+        buf.reverse();
+        self.writer.write_all(&buf).map_err(Error::io)?;
         self.size += 3;
         Ok(())
     }
 
     #[inline]
     fn serialize_i32(self, v: i32) -> Result<Self::Ok, Self::Error> {
-        let mut bytes = v.to_le_bytes();
-        bytes.reverse();
-        self.writer.write_all(&bytes).map_err(Error::io)?;
-        self.writer.write_all(&[prefix::INT | SIZE_PREFIX_4BYTE]).map_err(Error::io)?;
+        let mut buf: [u8; 5] = [0; 5];
+        buf[0] = prefix::INT | SIZE_PREFIX_4BYTE;
+        buf[1..5].copy_from_slice(&v.to_le_bytes());
+        buf.reverse();
+        self.writer.write_all(&buf).map_err(Error::io)?;
         self.size += 5;
         Ok(())
     }
 
     #[inline]
     fn serialize_i64(self, v: i64) -> Result<Self::Ok, Self::Error> {
-        let mut bytes = v.to_le_bytes();
-        bytes.reverse();
-        self.writer.write_all(&bytes).map_err(Error::io)?;
-        self.writer.write_all(&[prefix::INT | SIZE_PREFIX_8BYTE]).map_err(Error::io)?;
+        let mut buf: [u8; 9] = [0; 9];
+        buf[0] = prefix::INT | SIZE_PREFIX_8BYTE;
+        buf[1..9].copy_from_slice(&v.to_le_bytes());
+        buf.reverse();
+        self.writer.write_all(&buf).map_err(Error::io)?;
         self.size += 9;
         Ok(())
     }
 
     #[inline]
     fn serialize_u8(self, v: u8) -> Result<Self::Ok, Self::Error> {
-        let bytes = v.to_le_bytes();
-        self.writer.write_all(&bytes).map_err(Error::io)?;
-        self.writer.write_all(&[prefix::UINT | SIZE_PREFIX_1BYTE]).map_err(Error::io)?;
+        let mut buf: [u8; 2] = [0; 2];
+        buf[0] = v.to_le();
+        buf[1] = prefix::UINT | SIZE_PREFIX_1BYTE;
+        self.writer.write_all(&buf).map_err(Error::io)?;
         self.size += 2;
         Ok(())
     }
 
     #[inline]
     fn serialize_u16(self, v: u16) -> Result<Self::Ok, Self::Error> {
-        let mut bytes = v.to_le_bytes();
-        bytes.reverse();
-        self.writer.write_all(&bytes).map_err(Error::io)?;
-        self.writer.write_all(&[prefix::UINT | SIZE_PREFIX_2BYTE]).map_err(Error::io)?;
+        let mut buf: [u8; 3] = [0; 3];
+        buf[0] = prefix::UINT | SIZE_PREFIX_2BYTE;
+        buf[1..3].copy_from_slice(&v.to_le_bytes());
+        buf.reverse();
+        self.writer.write_all(&buf).map_err(Error::io)?;
         self.size += 3;
         Ok(())
     }
 
     #[inline]
     fn serialize_u32(self, v: u32) -> Result<Self::Ok, Self::Error> {
-        let mut bytes = v.to_le_bytes();
-        bytes.reverse();
-        self.writer.write_all(&bytes).map_err(Error::io)?;
-        self.writer.write_all(&[prefix::UINT | SIZE_PREFIX_4BYTE]).map_err(Error::io)?;
+        let mut buf: [u8; 5] = [0; 5];
+        buf[0] = prefix::UINT | SIZE_PREFIX_4BYTE;
+        buf[1..5].copy_from_slice(&v.to_le_bytes());
+        buf.reverse();
+        self.writer.write_all(&buf).map_err(Error::io)?;
         self.size += 5;
         Ok(())
     }
 
     #[inline]
     fn serialize_u64(self, v: u64) -> Result<Self::Ok, Self::Error> {
-        let mut bytes = v.to_le_bytes();
-        bytes.reverse();
-        self.writer.write_all(&bytes).map_err(Error::io)?;
-        self.writer.write_all(&[prefix::UINT | SIZE_PREFIX_8BYTE]).map_err(Error::io)?;
+        let mut buf: [u8; 9] = [0; 9];
+        buf[0] = prefix::UINT | SIZE_PREFIX_8BYTE;
+        buf[1..9].copy_from_slice(&v.to_le_bytes());
+        buf.reverse();
+        self.writer.write_all(&buf).map_err(Error::io)?;
         self.size += 9;
         Ok(())
     }
 
     #[inline]
     fn serialize_f32(self, v: f32) -> Result<Self::Ok, Self::Error> {
-        let mut bytes = v.to_le_bytes();
-        bytes.reverse();
-        self.writer.write_all(&bytes).map_err(Error::io)?;
-        self.writer.write_all(&[prefix::FLOAT | SIZE_PREFIX_4BYTE]).map_err(Error::io)?;
+        let mut buf: [u8; 5] = [0; 5];
+        buf[0] = prefix::FLOAT | SIZE_PREFIX_4BYTE;
+        buf[1..5].copy_from_slice(&v.to_le_bytes());
+        buf.reverse();
+        self.writer.write_all(&buf).map_err(Error::io)?;
         self.size += 5;
         Ok(())
     }
 
     #[inline]
     fn serialize_f64(self, v: f64) -> Result<Self::Ok, Self::Error> {
-        let mut bytes = v.to_le_bytes();
-        bytes.reverse();
-        self.writer.write_all(&bytes).map_err(Error::io)?;
-        self.writer.write_all(&[prefix::FLOAT | SIZE_PREFIX_8BYTE]).map_err(Error::io)?;
+        let mut buf: [u8; 9] = [0; 9];
+        buf[0] = prefix::FLOAT | SIZE_PREFIX_8BYTE;
+        buf[1..9].copy_from_slice(&v.to_le_bytes());
+        buf.reverse();
+        self.writer.write_all(&buf).map_err(Error::io)?;
         self.size += 9;
         Ok(())
     }
 
     #[inline]
     fn serialize_char(self, v: char) -> Result<Self::Ok, Self::Error> {
-        let mut buf = [0; 4];
-        let bytes = v.encode_utf8(&mut buf);
-        self.serialize_str(&bytes)
+        let mut buf: [u8; 6] = [0; 6];
+        buf[0] = prefix::STRING | SIZE_PREFIX_1BYTE;
+        buf[1] = 4u8.to_le();
+        buf[2..6].copy_from_slice(&(v as u32).to_le_bytes());
+        buf.reverse();
+        self.writer.write_all(&buf).map_err(Error::io)?;
+        self.size += 5;
+        Ok(())
     }
 
     #[inline]
     fn serialize_str(self, v: &str) -> Result<Self::Ok, Self::Error> {
         let bytes = v.as_bytes();
-        let len = bytes.len();
-        let (header, header_size) = generate_reverse_header(prefix::STRING, len);
-        for &byte in bytes.iter().rev() {
-            self.writer.write_all(&[byte]).map_err(Error::io)?;
-        }
-        self.writer.write_all(&header[..header_size]).map_err(Error::io)?;
-        self.size += len + header_size;
+        let size = bytes.len();
+        let (header, header_size) = generate_reverse_header(prefix::STRING, size);
+        self.buffer.clear();
+        self.buffer.extend_from_slice(&header[..header_size]);
+        self.buffer.extend_from_slice(bytes);
+        self.buffer.reverse();
+        self.writer.write_all(&self.buffer).map_err(Error::io)?;
+        self.size += size + header_size;
         Ok(())
     }
 
     #[inline]
     fn serialize_bytes(self, v: &[u8]) -> Result<Self::Ok, Self::Error> {
-        let len = v.len();
-        let (header, header_size) = generate_reverse_header(prefix::BYTES, len);
-        for &byte in v.iter().rev() {
-            self.writer.write_all(&[byte]).map_err(Error::io)?;
-        }
-        self.writer.write_all(&header[..header_size]).map_err(Error::io)?;
-        self.size += len + header_size;
+        let size = v.len();
+        let (header, header_size) = generate_reverse_header(prefix::BYTES, size);
+        self.buffer.clear();
+        self.buffer.extend_from_slice(&header[..header_size]);
+        self.buffer.extend_from_slice(v);
+        self.buffer.reverse();
+        self.writer.write_all(&self.buffer).map_err(Error::io)?;
+        self.size += size + header_size;
         Ok(())
     }
 
@@ -259,8 +278,9 @@ where
         let start_pos = self.size;
         self.serialize_some(value)?;
         self.serialize_str(variant)?;
-        let (header, header_size) = generate_reverse_header(prefix::OBJECT, self.size - start_pos);
-        self.writer.write_all(&header[..header_size]).map_err(Error::io)?;
+        let (mut header, header_size) = generate_reverse_header(prefix::OBJECT, self.size - start_pos);
+        header.reverse();
+        self.writer.write_all(&header[header_size..]).map_err(Error::io)?;
         Ok(())
     }
 
@@ -290,8 +310,9 @@ where
         let start_pos = self.size;
         self.serialize_tuple(len)?;
         self.serialize_str(variant)?;
-        let (header, header_size) = generate_reverse_header(prefix::OBJECT, self.size - start_pos);
-        self.writer.write_all(&header[..header_size]).map_err(Error::io)?;
+        let (mut header, header_size) = generate_reverse_header(prefix::OBJECT, self.size - start_pos);
+        header.reverse();
+        self.writer.write_all(&header[header_size..]).map_err(Error::io)?;
         Ok(Compound::new(self))
     }
 
@@ -317,8 +338,9 @@ where
         let start_pos = self.size;
         self.serialize_struct(name, len)?;
         self.serialize_str(variant)?;
-        let (header, header_size) = generate_reverse_header(prefix::OBJECT, self.size - start_pos);
-        self.writer.write_all(&header[..header_size]).map_err(Error::io)?;
+        let (mut header, header_size) = generate_reverse_header(prefix::OBJECT, self.size - start_pos);
+        header.reverse();
+        self.writer.write_all(&header[header_size..]).map_err(Error::io)?;
         Ok(Compound::new(self))
     }
 }
@@ -593,58 +615,28 @@ where
 pub fn generate_reverse_header(prefix: u8, size_of_byte: usize) -> ([u8; 9], usize) {
     match size_of_byte {
         s if s <= u8::MAX as usize => {
-            let v = s.to_le_bytes();
-            (
-                [
-                    v[0], 
-                    prefix | SIZE_PREFIX_1BYTE, 
-                    0, 0, 0, 0, 0, 0, 0 // padding
-                ], 
-                2
-            )
+            let mut buf = [0; 9];
+            buf[0] = prefix | SIZE_PREFIX_1BYTE;
+            buf[1] = s.to_le() as u8;
+            (buf, 2)
         },
         s if s <= u16::MAX as usize => {
-            let v = s.to_le_bytes();
-            (
-                [
-                    v[1], 
-                    v[0], 
-                    prefix | SIZE_PREFIX_2BYTE, 
-                    0, 0, 0, 0, 0, 0 // padding
-                ], 
-                3
-            )
+            let mut buf = [0; 9];
+            buf[0] = prefix | SIZE_PREFIX_2BYTE;
+            buf[1..3].copy_from_slice(&(s as u16).to_le_bytes());
+            (buf, 3)
         },
         s if s <= u32::MAX as usize => {
-            let v = s.to_le_bytes();
-            (
-                [
-                    v[3], 
-                    v[2], 
-                    v[1], 
-                    v[0], 
-                    prefix | SIZE_PREFIX_4BYTE, 
-                    0, 0, 0, 0 // padding
-                ], 
-                5
-            )
+            let mut buf = [0; 9];
+            buf[0] = prefix | SIZE_PREFIX_4BYTE;
+            buf[1..5].copy_from_slice(&(s as u32).to_le_bytes());
+            (buf, 5)
         },
         s => {
-            let v = s.to_le_bytes();
-            (
-                [
-                    v[7], 
-                    v[6], 
-                    v[5], 
-                    v[4], 
-                    v[3], 
-                    v[2], 
-                    v[1], 
-                    v[0], 
-                    prefix | SIZE_PREFIX_8BYTE
-                ], 
-                9
-            )
+            let mut buf = [0; 9];
+            buf[0] = prefix | SIZE_PREFIX_8BYTE;
+            buf[1..9].copy_from_slice(&(s as u64).to_le_bytes());
+            (buf, 9)
         },
     }
 }
