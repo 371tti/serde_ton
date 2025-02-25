@@ -3,4 +3,12 @@ name = "serde_ton"
 version = "0.1.0"
 edition = "2024"
 
+[features]
+preserve_order = []
+
 [dependencies]
+half = { version = "2.4.1", features = ["serde"] }
+serde = { version = "1.0.218", features = ["derive"] }
+uuid = "1.13.1"
+chrono = { version = "0.4.39", features = ["serde"] }
+serde_json = "1.0.138"

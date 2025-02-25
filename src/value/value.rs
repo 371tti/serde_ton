@@ -1,5 +1,13 @@
+use std::hash::Hash;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+use chrono::{DateTime, Duration, Utc};
+use serde::{Deserialize, Serialize};
+use uuid::Uuid;
+
+use super::{map::Map, num::{Float, Int, UInt}};
+
+
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub enum Value {
     /// Undefined 型
     /// 値が未定義であることを示す型
@@ -96,7 +104,7 @@ pub enum Value {
 
     /// Object 型
     /// 値がオブジェクトであることを示す型
-    Object(HashMap<Value, Value>),
+    Object(Map<KeyValue, Value>),
 
     /// Wrapped JSON 型
     /// 値が JSON であることを示す型
@@ -105,4 +113,52 @@ pub enum Value {
     /// Meta 型
     /// 値がメタデータであることを示す型
     Meta(Box<Value>),
+}
+
+impl Default for Value {
+    fn default() -> Self {
+        Value::Null
+    }
+}
+
+/// KeyValue 型
+/// Object型におけるKeyを表現する型
+/// Hash Ord を実装している
+/// Object WrappedJson Array はkyeにすべきでないので含まない
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum KeyValue {
+    Undefined,
+    Null,
+    Bool(bool),
+    Int(Int),
+    UInt(UInt),
+    Float(Float),
+    String(String),
+    Bytes(Vec<u8>),
+    UUID(Uuid),
+    DateTime(DateTime<Utc>),
+    Timestamp(i64),
+    Duration(Duration),
+}
+
+impl Serialize for KeyValue {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        match self {
+            Self::Undefined => self.serialize(serializer),
+            Self::Null => self.serialize(serializer),
+            Self::Bool(v) => v.serialize(serializer),
+            Self::Int(v) => v.serialize(serializer),
+            Self::UInt(v) => v.serialize(serializer),
+            Self::Float(v) => v.serialize(serializer),
+            Self::String(v) => v.serialize(serializer),
+            Self::Bytes(v) => v.serialize(serializer),
+            Self::UUID(v) => v.to_string().serialize(serializer),
+            Self::DateTime(v) => v.serialize(serializer),
+            Self::Timestamp(v) => v.serialize(serializer),
+            Self::Duration(v) => v.serialize(serializer),
+        }
+    }
 }
