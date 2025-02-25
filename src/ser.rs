@@ -16,7 +16,7 @@ where
     W: Write,
 {
     writer: W,
-    size: u64,
+    size: usize,
 }
 
 impl<W> ReverseSerializer<W>
@@ -40,7 +40,7 @@ where
     /// 
     /// return: u64
     #[inline]
-    pub fn size(&self) -> u64 {
+    pub fn size(&self) -> usize {
         self.size
     }
 
@@ -71,7 +71,7 @@ where
     #[inline]
     fn serialize_bool(self, v: bool) -> Result<Self::Ok, Self::Error> {
         // <header: <prefix: 6bit, value: 1bit>
-        self.writer.write(&[prefix::BOOL | v as u8]).map_err(|e| Error::io(e))?;
+        self.writer.write_all(&[prefix::BOOL | v as u8]).map_err(Error::io)?;
         self.size += 1;
         Ok(())
     }
@@ -79,8 +79,8 @@ where
     #[inline]
     fn serialize_i8(self, v: i8) -> Result<Self::Ok, Self::Error> {
         let bytes = v.to_le_bytes();
-        self.writer.write(&bytes).map_err(|e| Error::io(e))?;
-        self.writer.write(&[prefix::INT | SIZE_PREFIX_1BYTE]).map_err(|e| Error::io(e))?;
+        self.writer.write_all(&bytes).map_err(Error::io)?;
+        self.writer.write_all(&[prefix::INT | SIZE_PREFIX_1BYTE]).map_err(Error::io)?;
         self.size += 2;
         Ok(())
     }
@@ -89,8 +89,8 @@ where
     fn serialize_i16(self, v: i16) -> Result<Self::Ok, Self::Error> {
         let mut bytes = v.to_le_bytes();
         bytes.reverse();
-        self.writer.write(&bytes).map_err(|e| Error::io(e))?;
-        self.writer.write(&[prefix::INT | SIZE_PREFIX_2BYTE]).map_err(|e| Error::io(e))?;
+        self.writer.write_all(&bytes).map_err(Error::io)?;
+        self.writer.write_all(&[prefix::INT | SIZE_PREFIX_2BYTE]).map_err(Error::io)?;
         self.size += 3;
         Ok(())
     }
@@ -99,8 +99,8 @@ where
     fn serialize_i32(self, v: i32) -> Result<Self::Ok, Self::Error> {
         let mut bytes = v.to_le_bytes();
         bytes.reverse();
-        self.writer.write(&bytes).map_err(|e| Error::io(e))?;
-        self.writer.write(&[prefix::INT | SIZE_PREFIX_4BYTE]).map_err(|e| Error::io(e))?;
+        self.writer.write_all(&bytes).map_err(Error::io)?;
+        self.writer.write_all(&[prefix::INT | SIZE_PREFIX_4BYTE]).map_err(Error::io)?;
         self.size += 5;
         Ok(())
     }
@@ -109,8 +109,8 @@ where
     fn serialize_i64(self, v: i64) -> Result<Self::Ok, Self::Error> {
         let mut bytes = v.to_le_bytes();
         bytes.reverse();
-        self.writer.write(&bytes).map_err(|e| Error::io(e))?;
-        self.writer.write(&[prefix::INT | SIZE_PREFIX_8BYTE]).map_err(|e| Error::io(e))?;
+        self.writer.write_all(&bytes).map_err(Error::io)?;
+        self.writer.write_all(&[prefix::INT | SIZE_PREFIX_8BYTE]).map_err(Error::io)?;
         self.size += 9;
         Ok(())
     }
@@ -118,8 +118,8 @@ where
     #[inline]
     fn serialize_u8(self, v: u8) -> Result<Self::Ok, Self::Error> {
         let bytes = v.to_le_bytes();
-        self.writer.write(&bytes).map_err(|e| Error::io(e))?;
-        self.writer.write(&[prefix::UINT | SIZE_PREFIX_1BYTE]).map_err(|e| Error::io(e))?;
+        self.writer.write_all(&bytes).map_err(Error::io)?;
+        self.writer.write_all(&[prefix::UINT | SIZE_PREFIX_1BYTE]).map_err(Error::io)?;
         self.size += 2;
         Ok(())
     }
@@ -128,8 +128,8 @@ where
     fn serialize_u16(self, v: u16) -> Result<Self::Ok, Self::Error> {
         let mut bytes = v.to_le_bytes();
         bytes.reverse();
-        self.writer.write(&bytes).map_err(|e| Error::io(e))?;
-        self.writer.write(&[prefix::UINT | SIZE_PREFIX_2BYTE]).map_err(|e| Error::io(e))?;
+        self.writer.write_all(&bytes).map_err(Error::io)?;
+        self.writer.write_all(&[prefix::UINT | SIZE_PREFIX_2BYTE]).map_err(Error::io)?;
         self.size += 3;
         Ok(())
     }
@@ -138,8 +138,8 @@ where
     fn serialize_u32(self, v: u32) -> Result<Self::Ok, Self::Error> {
         let mut bytes = v.to_le_bytes();
         bytes.reverse();
-        self.writer.write(&bytes).map_err(|e| Error::io(e))?;
-        self.writer.write(&[prefix::UINT | SIZE_PREFIX_4BYTE]).map_err(|e| Error::io(e))?;
+        self.writer.write_all(&bytes).map_err(Error::io)?;
+        self.writer.write_all(&[prefix::UINT | SIZE_PREFIX_4BYTE]).map_err(Error::io)?;
         self.size += 5;
         Ok(())
     }
@@ -148,8 +148,8 @@ where
     fn serialize_u64(self, v: u64) -> Result<Self::Ok, Self::Error> {
         let mut bytes = v.to_le_bytes();
         bytes.reverse();
-        self.writer.write(&bytes).map_err(|e| Error::io(e))?;
-        self.writer.write(&[prefix::UINT | SIZE_PREFIX_8BYTE]).map_err(|e| Error::io(e))?;
+        self.writer.write_all(&bytes).map_err(Error::io)?;
+        self.writer.write_all(&[prefix::UINT | SIZE_PREFIX_8BYTE]).map_err(Error::io)?;
         self.size += 9;
         Ok(())
     }
@@ -158,8 +158,8 @@ where
     fn serialize_f32(self, v: f32) -> Result<Self::Ok, Self::Error> {
         let mut bytes = v.to_le_bytes();
         bytes.reverse();
-        self.writer.write(&bytes).map_err(|e| Error::io(e))?;
-        self.writer.write(&[prefix::FLOAT | SIZE_PREFIX_4BYTE]).map_err(|e| Error::io(e))?;
+        self.writer.write_all(&bytes).map_err(Error::io)?;
+        self.writer.write_all(&[prefix::FLOAT | SIZE_PREFIX_4BYTE]).map_err(Error::io)?;
         self.size += 5;
         Ok(())
     }
@@ -168,8 +168,8 @@ where
     fn serialize_f64(self, v: f64) -> Result<Self::Ok, Self::Error> {
         let mut bytes = v.to_le_bytes();
         bytes.reverse();
-        self.writer.write(&bytes).map_err(|e| Error::io(e))?;
-        self.writer.write(&[prefix::FLOAT | SIZE_PREFIX_8BYTE]).map_err(|e| Error::io(e))?;
+        self.writer.write_all(&bytes).map_err(Error::io)?;
+        self.writer.write_all(&[prefix::FLOAT | SIZE_PREFIX_8BYTE]).map_err(Error::io)?;
         self.size += 9;
         Ok(())
     }
@@ -185,30 +185,30 @@ where
     fn serialize_str(self, v: &str) -> Result<Self::Ok, Self::Error> {
         let bytes = v.as_bytes();
         let len = bytes.len();
-        let (header, header_size) = generate_reverse_header(prefix::STRING, len as u64);
+        let (header, header_size) = generate_reverse_header(prefix::STRING, len);
         for &byte in bytes.iter().rev() {
-            self.writer.write(&[byte]).map_err(|e| Error::io(e))?;
+            self.writer.write_all(&[byte]).map_err(Error::io)?;
         }
-        self.writer.write(&header[..header_size as usize]).map_err(|e| Error::io(e))?;
-        self.size += len as u64 + header_size as u64;
+        self.writer.write_all(&header[..header_size]).map_err(Error::io)?;
+        self.size += len + header_size;
         Ok(())
     }
 
     #[inline]
     fn serialize_bytes(self, v: &[u8]) -> Result<Self::Ok, Self::Error> {
         let len = v.len();
-        let (header, header_size) = generate_reverse_header(prefix::BYTES, len as u64);
+        let (header, header_size) = generate_reverse_header(prefix::BYTES, len);
         for &byte in v.iter().rev() {
-            self.writer.write(&[byte]).map_err(|e| Error::io(e))?;
+            self.writer.write_all(&[byte]).map_err(Error::io)?;
         }
-        self.writer.write(&header[..header_size as usize]).map_err(|e| Error::io(e))?;
-        self.size += len as u64 + header_size as u64;
+        self.writer.write_all(&header[..header_size]).map_err(Error::io)?;
+        self.size += len + header_size;
         Ok(())
     }
 
     #[inline]
     fn serialize_none(self) -> Result<Self::Ok, Self::Error> {
-        self.writer.write(&[prefix::NULL]).map_err(|e| Error::io(e))?;
+        self.writer.write_all(&[prefix::NULL]).map_err(Error::io)?;
         self.size += 1;
         Ok(())
     }
@@ -260,7 +260,7 @@ where
         self.serialize_some(value)?;
         self.serialize_str(variant)?;
         let (header, header_size) = generate_reverse_header(prefix::OBJECT, self.size - start_pos);
-        self.writer.write(&header[..header_size as usize]).map_err(|e| Error::io(e))?;
+        self.writer.write_all(&header[..header_size]).map_err(Error::io)?;
         Ok(())
     }
 
@@ -291,7 +291,7 @@ where
         self.serialize_tuple(len)?;
         self.serialize_str(variant)?;
         let (header, header_size) = generate_reverse_header(prefix::OBJECT, self.size - start_pos);
-        self.writer.write(&header[..header_size as usize]).map_err(|e| Error::io(e))?;
+        self.writer.write_all(&header[..header_size]).map_err(Error::io)?;
         Ok(Compound::new(self))
     }
 
@@ -318,7 +318,7 @@ where
         self.serialize_struct(name, len)?;
         self.serialize_str(variant)?;
         let (header, header_size) = generate_reverse_header(prefix::OBJECT, self.size - start_pos);
-        self.writer.write(&header[..header_size as usize]).map_err(|e| Error::io(e))?;
+        self.writer.write_all(&header[..header_size]).map_err(Error::io)?;
         Ok(Compound::new(self))
     }
 }
@@ -328,13 +328,14 @@ where
     W: Write,
 {
     ser: &'a mut ReverseSerializer<W>,
-    start_pos: u64,
+    start_pos: usize,
 }
 
 impl<'a, W> Compound<'a, W>
 where 
     W: Write,
 {
+    #[inline]
     pub fn new(ser: &'a mut ReverseSerializer<W>) -> Self {
         let start_pos = ser.size;
         Self {
@@ -352,6 +353,8 @@ where
 
     type Error = Error;
 
+
+    #[inline]
     fn serialize_element<T>(&mut self, value: &T) -> Result<(), Self::Error>
     where
         T: ?Sized + ser::Serialize {
@@ -359,15 +362,16 @@ where
         Ok(())
     }
 
+    #[inline]
     fn end(self) -> Result<Self::Ok, Self::Error> {
         // シーケンスの合計サイズを計算
         let seq_size = self.ser.size - self.start_pos;
         // ヘッダを生成
         let (header, header_size) = generate_reverse_header(prefix::ARRAY, seq_size);
         // ヘッダを書き込み
-        self.ser.writer.write(&header[..header_size as usize]).map_err(|e| Error::io(e))?;
+        self.ser.writer.write_all(&header[..header_size]).map_err(Error::io)?;
         // ヘッダ分のサイズを加算
-        self.ser.size += header_size as u64;
+        self.ser.size += header_size;
         Ok(())
     }
 }
@@ -380,6 +384,7 @@ where
 
     type Error = Error;
 
+    #[inline]
     fn serialize_element<T>(&mut self, value: &T) -> Result<(), Self::Error>
     where
         T: ?Sized + ser::Serialize {
@@ -387,15 +392,16 @@ where
         Ok(())
     }
 
+    #[inline]
     fn end(self) -> Result<Self::Ok, Self::Error> {
         // シーケンスの合計サイズを計算
         let seq_size = self.ser.size - self.start_pos;
         // ヘッダを生成
         let (header, header_size) = generate_reverse_header(prefix::ARRAY, seq_size);
         // ヘッダを書き込み
-        self.ser.writer.write(&header[..header_size as usize]).map_err(|e| Error::io(e))?;
+        self.ser.writer.write_all(&header[..header_size]).map_err(Error::io)?;
         // ヘッダ分のサイズを加算
-        self.ser.size += header_size as u64;
+        self.ser.size += header_size;
         Ok(())
     }
 }
@@ -408,6 +414,7 @@ where
 
     type Error = Error;
 
+    #[inline]
     fn serialize_field<T>(&mut self, value: &T) -> Result<(), Self::Error>
     where
         T: ?Sized + ser::Serialize {
@@ -415,15 +422,16 @@ where
         Ok(())
     }
 
+    #[inline]
     fn end(self) -> Result<Self::Ok, Self::Error> {
         // シーケンスの合計サイズを計算
         let seq_size = self.ser.size - self.start_pos;
         // ヘッダを生成
         let (header, header_size) = generate_reverse_header(prefix::ARRAY, seq_size);
         // ヘッダを書き込み
-        self.ser.writer.write(&header[..header_size as usize]).map_err(|e| Error::io(e))?;
+        self.ser.writer.write_all(&header[..header_size]).map_err(Error::io)?;
         // ヘッダ分のサイズを加算
-        self.ser.size += header_size as u64;
+        self.ser.size += header_size;
         Ok(())
     }
 }
@@ -453,7 +461,7 @@ where
         // // ヘッダを生成
         // let (header, header_size) = generate_reverse_header(prefix::ARRAY, seq_size);
         // // ヘッダを書き込み
-        // self.ser.writer.write(&header[..header_size as usize]);
+        // self.ser.writer.write_all(&header[..header_size as usize]);
         // // ヘッダ分のサイズを加算
         // self.ser.size += header_size as u64;
         Ok(())
@@ -504,9 +512,9 @@ where
         // ヘッダを生成
         let (header, header_size) = generate_reverse_header(prefix::OBJECT, seq_size);
         // ヘッダを書き込み
-        self.ser.writer.write(&header[..header_size as usize]).map_err(|e| Error::io(e))?;
+        self.ser.writer.write_all(&header[..header_size]).map_err(Error::io)?;
         // ヘッダ分のサイズを加算
-        self.ser.size += header_size as u64;
+        self.ser.size += header_size;
         Ok(())
     }
 }
@@ -536,9 +544,9 @@ where
         // ヘッダを生成
         let (header, header_size) = generate_reverse_header(prefix::OBJECT, seq_size);
         // ヘッダを書き込み
-        self.ser.writer.write(&header[..header_size as usize]).map_err(|e| Error::io(e))?;
+        self.ser.writer.write_all(&header[..header_size]).map_err(Error::io)?;
         // ヘッダ分のサイズを加算
-        self.ser.size += header_size as u64;
+        self.ser.size += header_size;
         Ok(())
     }
 }
@@ -568,9 +576,9 @@ where
         // ヘッダを生成
         let (header, header_size) = generate_reverse_header(prefix::OBJECT, seq_size);
         // ヘッダを書き込み
-        self.ser.writer.write(&header[..header_size as usize]).map_err(|e| Error::io(e))?;
+        self.ser.writer.write_all(&header[..header_size]).map_err(Error::io)?;
         // ヘッダ分のサイズを加算
-        self.ser.size += header_size as u64;
+        self.ser.size += header_size;
         Ok(())
     }
 }
@@ -582,9 +590,9 @@ where
 /// 
 /// return: ([u8; 9], u8) // header, headerのサイズ
 #[inline]
-pub fn generate_reverse_header(prefix: u8, size_of_byte: u64) -> ([u8; 9], u8) {
+pub fn generate_reverse_header(prefix: u8, size_of_byte: usize) -> ([u8; 9], usize) {
     match size_of_byte {
-        s if s <= u8::MAX as u64 => {
+        s if s <= u8::MAX as usize => {
             let v = s.to_le_bytes();
             (
                 [
@@ -595,7 +603,7 @@ pub fn generate_reverse_header(prefix: u8, size_of_byte: u64) -> ([u8; 9], u8) {
                 2
             )
         },
-        s if s <= u16::MAX as u64 => {
+        s if s <= u16::MAX as usize => {
             let v = s.to_le_bytes();
             (
                 [
@@ -607,7 +615,7 @@ pub fn generate_reverse_header(prefix: u8, size_of_byte: u64) -> ([u8; 9], u8) {
                 3
             )
         },
-        s if s <= u32::MAX as u64 => {
+        s if s <= u32::MAX as usize => {
             let v = s.to_le_bytes();
             (
                 [
