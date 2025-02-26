@@ -18,6 +18,7 @@ where
     writer: W,
     buffer: Vec<u8>,
     size: usize,
+    deep: usize,
 }
 
 impl<W> ReverseSerializer<W>
@@ -34,7 +35,8 @@ where
         Self {
             writer,
             size: 0,
-            buffer: Vec::with_capacity(32/*default capacity*/),
+            buffer: Vec::with_capacity(256/*default capacity*/),
+            deep: 0,
         }
     }
 
@@ -44,7 +46,49 @@ where
             writer,
             size: 0,
             buffer: Vec::with_capacity(capacity),
+            deep: 0,
         }
+    }
+
+    /// バッファに書き込む
+    /// 
+    /// バッファのキャパがいっぱいになるとflashします
+    /// 深さが0の場合、必ずすべてを書ききります
+    /// 
+    /// iterator: I
+    /// 
+    /// return: Result<(), Error>
+    #[inline]
+    fn write_iter<'a, I>(&mut self, mut iterator: I) -> Result<(), Error>
+    where
+        I: Iterator<Item = &'a u8>,
+    {
+        let cp = self.buffer.capacity();
+        let mut rem_cp = cp - self.buffer.len();
+        'outer: loop {
+            for _ in 0..rem_cp {
+                if let Some(b) = iterator.next() {
+                    self.buffer.push(*b);
+                } else {
+                    break 'outer;
+                }
+            }
+            self.flash()?;
+            rem_cp = cp;
+        }
+        if self.deep == 0 {
+            self.flash()?;
+        }
+
+        Ok(())
+    }
+
+    /// バッファの内容をフラッシュする
+    #[inline]
+    fn flash(&mut self) -> Result<(), Error> {
+        self.writer.write_all(&self.buffer).map_err(Error::io)?;
+        self.buffer.truncate(0);
+        Ok(())
     }
 
     /// シリアライズしたサイズを取得する
@@ -82,7 +126,8 @@ where
     #[inline]
     fn serialize_bool(self, v: bool) -> Result<Self::Ok, Self::Error> {
         // <header: <prefix: 6bit, value: 1bit>
-        self.writer.write_all(&[prefix::BOOL | v as u8]).map_err(Error::io)?;
+        let value = [prefix::BOOL | (v as u8).to_be()];
+        self.write_iter(value.iter())?;
         self.size += 1;
         Ok(())
     }
@@ -92,7 +137,7 @@ where
         let mut buf: [u8; 2] = [0; 2];
         buf[0] = v.to_le() as u8;
         buf[1] = prefix::INT | SIZE_PREFIX_1BYTE;
-        self.writer.write_all(&buf).map_err(Error::io)?;
+        self.write_iter(buf.iter())?;
         self.size += 2;
         Ok(())
     }
@@ -102,8 +147,7 @@ where
         let mut buf: [u8; 3] = [0; 3];
         buf[0] = prefix::INT | SIZE_PREFIX_2BYTE;
         buf[1..3].copy_from_slice(&v.to_le_bytes());
-        buf.reverse();
-        self.writer.write_all(&buf).map_err(Error::io)?;
+        self.write_iter(buf.iter().rev())?;
         self.size += 3;
         Ok(())
     }
@@ -113,8 +157,7 @@ where
         let mut buf: [u8; 5] = [0; 5];
         buf[0] = prefix::INT | SIZE_PREFIX_4BYTE;
         buf[1..5].copy_from_slice(&v.to_le_bytes());
-        buf.reverse();
-        self.writer.write_all(&buf).map_err(Error::io)?;
+        self.write_iter(buf.iter().rev())?;
         self.size += 5;
         Ok(())
     }
@@ -124,8 +167,7 @@ where
         let mut buf: [u8; 9] = [0; 9];
         buf[0] = prefix::INT | SIZE_PREFIX_8BYTE;
         buf[1..9].copy_from_slice(&v.to_le_bytes());
-        buf.reverse();
-        self.writer.write_all(&buf).map_err(Error::io)?;
+        self.write_iter(buf.iter().rev())?;
         self.size += 9;
         Ok(())
     }
@@ -135,7 +177,7 @@ where
         let mut buf: [u8; 2] = [0; 2];
         buf[0] = v.to_le();
         buf[1] = prefix::UINT | SIZE_PREFIX_1BYTE;
-        self.writer.write_all(&buf).map_err(Error::io)?;
+        self.write_iter(buf.iter())?;
         self.size += 2;
         Ok(())
     }
@@ -145,8 +187,7 @@ where
         let mut buf: [u8; 3] = [0; 3];
         buf[0] = prefix::UINT | SIZE_PREFIX_2BYTE;
         buf[1..3].copy_from_slice(&v.to_le_bytes());
-        buf.reverse();
-        self.writer.write_all(&buf).map_err(Error::io)?;
+        self.write_iter(buf.iter().rev())?;
         self.size += 3;
         Ok(())
     }
@@ -156,8 +197,7 @@ where
         let mut buf: [u8; 5] = [0; 5];
         buf[0] = prefix::UINT | SIZE_PREFIX_4BYTE;
         buf[1..5].copy_from_slice(&v.to_le_bytes());
-        buf.reverse();
-        self.writer.write_all(&buf).map_err(Error::io)?;
+        self.write_iter(buf.iter().rev())?;
         self.size += 5;
         Ok(())
     }
@@ -167,8 +207,7 @@ where
         let mut buf: [u8; 9] = [0; 9];
         buf[0] = prefix::UINT | SIZE_PREFIX_8BYTE;
         buf[1..9].copy_from_slice(&v.to_le_bytes());
-        buf.reverse();
-        self.writer.write_all(&buf).map_err(Error::io)?;
+        self.write_iter(buf.iter().rev())?;
         self.size += 9;
         Ok(())
     }
@@ -178,8 +217,7 @@ where
         let mut buf: [u8; 5] = [0; 5];
         buf[0] = prefix::FLOAT | SIZE_PREFIX_4BYTE;
         buf[1..5].copy_from_slice(&v.to_le_bytes());
-        buf.reverse();
-        self.writer.write_all(&buf).map_err(Error::io)?;
+        self.write_iter(buf.iter().rev())?;
         self.size += 5;
         Ok(())
     }
@@ -189,8 +227,7 @@ where
         let mut buf: [u8; 9] = [0; 9];
         buf[0] = prefix::FLOAT | SIZE_PREFIX_8BYTE;
         buf[1..9].copy_from_slice(&v.to_le_bytes());
-        buf.reverse();
-        self.writer.write_all(&buf).map_err(Error::io)?;
+        self.write_iter(buf.iter().rev())?;
         self.size += 9;
         Ok(())
     }
@@ -201,8 +238,7 @@ where
         buf[0] = prefix::STRING | SIZE_PREFIX_1BYTE;
         buf[1] = 4u8.to_le();
         buf[2..6].copy_from_slice(&(v as u32).to_le_bytes());
-        buf.reverse();
-        self.writer.write_all(&buf).map_err(Error::io)?;
+        self.write_iter(buf.iter())?;
         self.size += 5;
         Ok(())
     }
@@ -214,23 +250,8 @@ where
         let (header, header_size) = generate_reverse_header(prefix::STRING, size);
         self.buffer.truncate(0);
         // 文字列データを逆順に格納
-        for &b in bytes.iter().rev() {
-            self.buffer.push(b);
-            if self.buffer.len() == self.buffer.capacity() {
-                self.writer.write_all(&self.buffer).map_err(Error::io)?;
-                self.buffer.truncate(0);
-            }
-        }
-        for &b in header[..header_size].iter().rev() {
-            self.buffer.push(b);
-            if self.buffer.len() == self.buffer.capacity() {
-                self.writer.write_all(&self.buffer).map_err(Error::io)?;
-                self.buffer.truncate(0);
-            }
-        }
-        if self.buffer.len() > 0 {
-            self.writer.write_all(&self.buffer).map_err(Error::io)?;
-        }
+        self.write_iter(bytes.iter().rev())?;
+        self.write_iter(header[..header_size].iter().rev())?;
         self.size += size + header_size;
         Ok(())
     }
@@ -241,30 +262,16 @@ where
         let (header, header_size) = generate_reverse_header(prefix::BYTES, size);
         self.buffer.truncate(0);
         // バイトデータを逆順に格納
-        for &b in v.iter().rev() {
-            self.buffer.push(b);
-            if self.buffer.len() == self.buffer.capacity() {
-                self.writer.write_all(&self.buffer).map_err(Error::io)?;
-                self.buffer.truncate(0);
-            }
-        }
-        for &b in header[..header_size].iter().rev() {
-            self.buffer.push(b);
-            if self.buffer.len() == self.buffer.capacity() {
-                self.writer.write_all(&self.buffer).map_err(Error::io)?;
-                self.buffer.truncate(0);
-            }
-        }
-        if self.buffer.len() > 0 {
-            self.writer.write_all(&self.buffer).map_err(Error::io)?;
-        }
+        self.write_iter(v.iter().rev())?;
+        self.write_iter(header[..header_size].iter().rev())?;
         self.size += size + header_size;
         Ok(())
     }
 
     #[inline]
     fn serialize_none(self) -> Result<Self::Ok, Self::Error> {
-        self.writer.write_all(&[prefix::NULL]).map_err(Error::io)?;
+        let value = [prefix::NULL];
+        self.write_iter(value.iter())?;
         self.size += 1;
         Ok(())
     }
@@ -315,9 +322,9 @@ where
         let start_pos = self.size;
         self.serialize_some(value)?;
         self.serialize_str(variant)?;
-        let (mut header, header_size) = generate_reverse_header(prefix::OBJECT, self.size - start_pos);
-        header.reverse();
-        self.writer.write_all(&header[header_size..]).map_err(Error::io)?;
+        let (header, header_size) = generate_reverse_header(prefix::OBJECT, self.size - start_pos);
+        self.write_iter(header[..header_size].iter().rev())?;
+        self.size += header_size;
         Ok(())
     }
 
@@ -347,9 +354,9 @@ where
         let start_pos = self.size;
         self.serialize_tuple(len)?;
         self.serialize_str(variant)?;
-        let (mut header, header_size) = generate_reverse_header(prefix::OBJECT, self.size - start_pos);
-        header.reverse();
-        self.writer.write_all(&header[header_size..]).map_err(Error::io)?;
+        let (header, header_size) = generate_reverse_header(prefix::OBJECT, self.size - start_pos);
+        self.write_iter(header[header_size..].iter().rev())?;
+        self.size += header_size;
         Ok(Compound::new(self))
     }
 
@@ -375,9 +382,9 @@ where
         let start_pos = self.size;
         self.serialize_struct(name, len)?;
         self.serialize_str(variant)?;
-        let (mut header, header_size) = generate_reverse_header(prefix::OBJECT, self.size - start_pos);
-        header.reverse();
-        self.writer.write_all(&header[header_size..]).map_err(Error::io)?;
+        let (header, header_size) = generate_reverse_header(prefix::OBJECT, self.size - start_pos);
+        self.write_iter(header[header_size..].iter().rev())?;
+        self.size += header_size;
         Ok(Compound::new(self))
     }
 }
@@ -397,6 +404,8 @@ where
     #[inline]
     pub fn new(ser: &'a mut ReverseSerializer<W>) -> Self {
         let start_pos = ser.size;
+        // ネストの深さを増やす
+        ser.deep += 1;
         Self {
             ser,
             start_pos,
@@ -423,13 +432,14 @@ where
 
     #[inline]
     fn end(self) -> Result<Self::Ok, Self::Error> {
+        // ネストを抜ける
+        self.ser.deep -= 1;
         // シーケンスの合計サイズを計算
         let seq_size = self.ser.size - self.start_pos;
         // ヘッダを生成
-        let (mut header, header_size) = generate_reverse_header(prefix::ARRAY, seq_size);
+        let (header, header_size) = generate_reverse_header(prefix::ARRAY, seq_size);
         // ヘッダを書き込み
-        header.reverse();
-        self.ser.writer.write_all(&header[header_size..]).map_err(Error::io)?;
+        self.ser.write_iter(header[header_size..].iter().rev())?;
         // ヘッダ分のサイズを加算
         self.ser.size += header_size;
         Ok(())
@@ -454,13 +464,14 @@ where
 
     #[inline]
     fn end(self) -> Result<Self::Ok, Self::Error> {
+        // ネストを抜ける
+        self.ser.deep -= 1;
         // シーケンスの合計サイズを計算
         let seq_size = self.ser.size - self.start_pos;
         // ヘッダを生成
-        let (mut header, header_size) = generate_reverse_header(prefix::ARRAY, seq_size);
+        let (header, header_size) = generate_reverse_header(prefix::ARRAY, seq_size);
         // ヘッダを書き込み
-        header.reverse();
-        self.ser.writer.write_all(&header[header_size..]).map_err(Error::io)?;
+        self.ser.write_iter(header[header_size..].iter().rev())?;
         // ヘッダ分のサイズを加算
         self.ser.size += header_size;
         Ok(())
@@ -485,13 +496,14 @@ where
 
     #[inline]
     fn end(self) -> Result<Self::Ok, Self::Error> {
+        // ネストを抜ける
+        self.ser.deep -= 1;
         // シーケンスの合計サイズを計算
         let seq_size = self.ser.size - self.start_pos;
         // ヘッダを生成
-        let (mut header, header_size) = generate_reverse_header(prefix::ARRAY, seq_size);
+        let (header, header_size) = generate_reverse_header(prefix::ARRAY, seq_size);
         // ヘッダを書き込み
-        header.reverse();
-        self.ser.writer.write_all(&header[header_size..]).map_err(Error::io)?;
+        self.ser.write_iter(header[header_size..].iter().rev())?;
         // ヘッダ分のサイズを加算
         self.ser.size += header_size;
         Ok(())
@@ -569,13 +581,14 @@ where
 
     #[inline]
     fn end(self) -> Result<Self::Ok, Self::Error> {
+        // ネストを抜ける
+        self.ser.deep -= 1;
         // Mapの合計サイズを計算
         let seq_size = self.ser.size - self.start_pos;
         // ヘッダを生成
-        let (mut header, header_size) = generate_reverse_header(prefix::OBJECT, seq_size);
+        let (header, header_size) = generate_reverse_header(prefix::OBJECT, seq_size);
         // ヘッダを書き込み
-        header.reverse();
-        self.ser.writer.write_all(&header[header_size..]).map_err(Error::io)?;
+        self.ser.write_iter(header[header_size..].iter().rev())?;
         // ヘッダ分のサイズを加算
         self.ser.size += header_size;
         Ok(())
@@ -602,13 +615,14 @@ where
 
     #[inline]
     fn end(self) -> Result<Self::Ok, Self::Error> {
+        // ネストを抜ける
+        self.ser.deep -= 1;
         // Structの合計サイズを計算
         let seq_size = self.ser.size - self.start_pos;
         // ヘッダを生成
-        let (mut header, header_size) = generate_reverse_header(prefix::OBJECT, seq_size);
+        let (header, header_size) = generate_reverse_header(prefix::OBJECT, seq_size);
         // ヘッダを書き込み
-        header.reverse();
-        self.ser.writer.write_all(&header[header_size..]).map_err(Error::io)?;
+        self.ser.write_iter(header[header_size..].iter().rev())?;
         // ヘッダ分のサイズを加算
         self.ser.size += header_size;
         Ok(())
@@ -635,13 +649,14 @@ where
 
     #[inline]
     fn end(self) -> Result<Self::Ok, Self::Error> {
+        // ネストを抜ける
+        self.ser.deep -= 1;
         // Structの合計サイズを計算
         let seq_size = self.ser.size - self.start_pos;
         // ヘッダを生成
-        let (mut header, header_size) = generate_reverse_header(prefix::OBJECT, seq_size);
+        let (header, header_size) = generate_reverse_header(prefix::OBJECT, seq_size);
         // ヘッダを書き込み
-        header.reverse();
-        self.ser.writer.write_all(&header[header_size..]).map_err(Error::io)?;
+        self.ser.write_iter(header[header_size..].iter().rev())?;
         // ヘッダ分のサイズを加算
         self.ser.size += header_size;
         Ok(())
