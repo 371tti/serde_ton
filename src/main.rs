@@ -8,31 +8,18 @@ struct TestStruct {
     b: String,
 }
 
-fn bench_serde_ton(c: &mut Criterion) {
-    let test = TestStruct {
-        a: 42,
-        b: "hello".to_string(),
+fn main() {
+    let structur = TestStruct {
+        a: 32,
+        b: "abc".to_string(),
     };
-    c.bench_function("serde_ton serialize", |b| {
-        b.iter(|| {
-            let mut ser = ReverseSerializer::new(Vec::new());
-            test.serialize(&mut ser).unwrap();
-            let _output = ser.into_inner();
-        })
-    });
-}
 
-fn bench_serde_json(c: &mut Criterion) {
-    let test = TestStruct {
-        a: 42,
-        b: "hello".to_string(),
-    };
-    c.bench_function("serde_json serialize", |b| {
-        b.iter(|| {
-            let _json = serde_json::to_string(&test).unwrap();
-        })
-    });
+    let mut ser = ReverseSerializer::new(Vec::new());
+    structur.serialize(&mut ser).unwrap();
+    let size = ser.size();
+    let mut output = ser.into_inner();
+    println!("Value: {:?}", output);
+    println!("Size: {}", size);
+    output.reverse();
+    println!("{}", output.iter().map(|byte| format!("{:02x}", byte)).collect::<String>());
 }
-
-criterion_group!(benches, bench_serde_ton, bench_serde_json);
-criterion_main!(benches);

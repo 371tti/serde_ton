@@ -98,7 +98,7 @@ fn bench_serde_cbor(c: &mut Criterion) {
     let test = generate_struct();
     c.bench_function("serde_cbor serialize", |b| {
         b.iter(|| {
-            let mut ser = serde_cbor::Serializer::new(Vec::new());
+            let mut ser = serde_cbor::Serializer::new(Vec::new()).packed_format();
             test.serialize(&mut ser).unwrap();
             let _cbor = ser.into_inner();
         })

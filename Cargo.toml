@@ -23,6 +23,3 @@ harness = false
 opt-level = 3         # 速度最適化
 lto = "fat"           # より積極的な Link Time Optimization
 debug = false         # デバッグ情報の削減
-codegen-units = 1     # コード生成ユニット数を1にして最適化を高める
-panic = "abort"       # パニック時のオーバーヘッド削減
-strip = "symbols"     # 不要なシンボルを削除

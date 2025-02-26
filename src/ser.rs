@@ -248,10 +248,9 @@ where
         let bytes = v.as_bytes();
         let size = bytes.len();
         let (header, header_size) = generate_reverse_header(prefix::STRING, size);
-        self.buffer.truncate(0);
         // 文字列データを逆順に格納
-        self.write_iter(bytes.iter().rev())?;
-        self.write_iter(header[..header_size].iter().rev())?;
+        let value = header[..header_size].iter().chain(bytes.iter());
+        self.write_iter(value.rev())?;
         self.size += size + header_size;
         Ok(())
     }
@@ -260,10 +259,9 @@ where
     fn serialize_bytes(self, v: &[u8]) -> Result<Self::Ok, Self::Error> {
         let size = v.len();
         let (header, header_size) = generate_reverse_header(prefix::BYTES, size);
-        self.buffer.truncate(0);
         // バイトデータを逆順に格納
-        self.write_iter(v.iter().rev())?;
-        self.write_iter(header[..header_size].iter().rev())?;
+        let value = header[..header_size].iter().chain(v.iter());
+        self.write_iter(value.rev())?;
         self.size += size + header_size;
         Ok(())
     }
@@ -355,7 +353,7 @@ where
         self.serialize_tuple(len)?;
         self.serialize_str(variant)?;
         let (header, header_size) = generate_reverse_header(prefix::OBJECT, self.size - start_pos);
-        self.write_iter(header[header_size..].iter().rev())?;
+        self.write_iter(header[..header_size].iter().rev())?;
         self.size += header_size;
         Ok(Compound::new(self))
     }
@@ -383,7 +381,7 @@ where
         self.serialize_struct(name, len)?;
         self.serialize_str(variant)?;
         let (header, header_size) = generate_reverse_header(prefix::OBJECT, self.size - start_pos);
-        self.write_iter(header[header_size..].iter().rev())?;
+        self.write_iter(header[..header_size].iter().rev())?;
         self.size += header_size;
         Ok(Compound::new(self))
     }
@@ -439,7 +437,7 @@ where
         // ヘッダを生成
         let (header, header_size) = generate_reverse_header(prefix::ARRAY, seq_size);
         // ヘッダを書き込み
-        self.ser.write_iter(header[header_size..].iter().rev())?;
+        self.ser.write_iter(header[..header_size].iter().rev())?;
         // ヘッダ分のサイズを加算
         self.ser.size += header_size;
         Ok(())
@@ -471,7 +469,7 @@ where
         // ヘッダを生成
         let (header, header_size) = generate_reverse_header(prefix::ARRAY, seq_size);
         // ヘッダを書き込み
-        self.ser.write_iter(header[header_size..].iter().rev())?;
+        self.ser.write_iter(header[..header_size].iter().rev())?;
         // ヘッダ分のサイズを加算
         self.ser.size += header_size;
         Ok(())
@@ -503,7 +501,7 @@ where
         // ヘッダを生成
         let (header, header_size) = generate_reverse_header(prefix::ARRAY, seq_size);
         // ヘッダを書き込み
-        self.ser.write_iter(header[header_size..].iter().rev())?;
+        self.ser.write_iter(header[..header_size].iter().rev())?;
         // ヘッダ分のサイズを加算
         self.ser.size += header_size;
         Ok(())
@@ -588,7 +586,7 @@ where
         // ヘッダを生成
         let (header, header_size) = generate_reverse_header(prefix::OBJECT, seq_size);
         // ヘッダを書き込み
-        self.ser.write_iter(header[header_size..].iter().rev())?;
+        self.ser.write_iter(header[..header_size].iter().rev())?;
         // ヘッダ分のサイズを加算
         self.ser.size += header_size;
         Ok(())
@@ -622,7 +620,7 @@ where
         // ヘッダを生成
         let (header, header_size) = generate_reverse_header(prefix::OBJECT, seq_size);
         // ヘッダを書き込み
-        self.ser.write_iter(header[header_size..].iter().rev())?;
+        self.ser.write_iter(header[..header_size].iter().rev())?;
         // ヘッダ分のサイズを加算
         self.ser.size += header_size;
         Ok(())
@@ -656,7 +654,7 @@ where
         // ヘッダを生成
         let (header, header_size) = generate_reverse_header(prefix::OBJECT, seq_size);
         // ヘッダを書き込み
-        self.ser.write_iter(header[header_size..].iter().rev())?;
+        self.ser.write_iter(header[..header_size].iter().rev())?;
         // ヘッダ分のサイズを加算
         self.ser.size += header_size;
         Ok(())
