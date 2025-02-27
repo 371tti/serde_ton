@@ -3,16 +3,12 @@ use serde::Serialize;
 use serde_ton::ser::ReverseSerializer;
 
 #[derive(Serialize)]
-struct TestStruct {
-    a: i32,
-    b: String,
+enum TestEnum {
+    A(String, u8)
 }
 
 fn main() {
-    let structur = TestStruct {
-        a: 32,
-        b: "abc".to_string(),
-    };
+    let structur = TestEnum::A("H".to_string(), 7);
 
     let mut ser = ReverseSerializer::new(Vec::new());
     structur.serialize(&mut ser).unwrap();
@@ -21,5 +17,5 @@ fn main() {
     println!("Value: {:?}", output);
     println!("Size: {}", size);
     output.reverse();
-    println!("{}", output.iter().map(|byte| format!("{:02x}", byte)).collect::<String>());
+    println!("{}", output.iter().map(|byte| format!("{:02x}_", byte)).collect::<String>());
 }
