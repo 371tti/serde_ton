@@ -22,7 +22,7 @@ pub enum Value {
     /// type size: 0 byte
     /// 
     /// 値が存在しないことを示すために使用されます。
-    Null,
+    None,
 
     /// Boolean 型
     /// 値が真偽値であることを示す型
@@ -117,7 +117,7 @@ pub enum Value {
 
 impl Default for Value {
     fn default() -> Self {
-        Value::Null
+        Value::None
     }
 }
 
@@ -128,7 +128,7 @@ impl Default for Value {
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum KeyValue {
     Undefined,
-    Null,
+    None,
     Bool(bool),
     Int(Int),
     UInt(UInt),
@@ -148,7 +148,7 @@ impl Serialize for KeyValue {
     {
         match self {
             Self::Undefined => self.serialize(serializer),
-            Self::Null => self.serialize(serializer),
+            Self::None => self.serialize(serializer),
             Self::Bool(v) => v.serialize(serializer),
             Self::Int(v) => v.serialize(serializer),
             Self::UInt(v) => v.serialize(serializer),

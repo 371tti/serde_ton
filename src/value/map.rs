@@ -163,54 +163,54 @@ impl Hash for Map<KeyValue, Value> {
     }
 }
 
-impl<'de> de::Deserialize<'de> for Map<KeyValue, Value> {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: de::Deserializer<'de>,
-    {
-        struct MapVisitor;
+// impl<'de> de::Deserialize<'de> for Map<KeyValue, Value> {
+//     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+//     where
+//         D: de::Deserializer<'de>,
+//     {
+//         struct MapVisitor;
 
-        impl<'de> de::Visitor<'de> for MapVisitor {
-            type Value = Map<KeyValue, Value>;
+//         impl<'de> de::Visitor<'de> for MapVisitor {
+//             type Value = Map<KeyValue, Value>;
 
-            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-                formatter.write_str("a map")
-            }
+//             fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+//                 formatter.write_str("a map")
+//             }
 
-            #[inline]
-            fn visit_map<V>(self, mut map: V) -> Result<Self::Value, V::Error>
-            where
-                V: de::MapAccess<'de>,
-            {
-                let mut values = MapImpl::new();
+//             #[inline]
+//             fn visit_map<V>(self, mut map: V) -> Result<Self::Value, V::Error>
+//             where
+//                 V: de::MapAccess<'de>,
+//             {
+//                 let mut values = MapImpl::new();
 
-                while let Some((key, value)) = map.next_entry()? {
-                    values.insert(key, value);
-                }
+//                 while let Some((key, value)) = map.next_entry()? {
+//                     values.insert(key, value);
+//                 }
 
-                Ok(Map { map: values })
-            }
-        }
+//                 Ok(Map { map: values })
+//             }
+//         }
 
-        deserializer.deserialize_map(MapVisitor)
-    }
-}
+//         deserializer.deserialize_map(MapVisitor)
+//     }
+// }
 
-impl<'de> de::IntoDeserializer<'de, Error> for Map<KeyValue, Value> {
-    type Deserializer = Self;
+// impl<'de> de::IntoDeserializer<'de, Error> for Map<KeyValue, Value> {
+//     type Deserializer = Self;
 
-    fn into_deserializer(self) -> Self {
-        self
-    }
-}
+//     fn into_deserializer(self) -> Self {
+//         self
+//     }
+// }
 
-impl<'de> de::IntoDeserializer<'de, Error> for &'de Map<KeyValue, Value> {
-    type Deserializer = Self;
+// impl<'de> de::IntoDeserializer<'de, Error> for &'de Map<KeyValue, Value> {
+//     type Deserializer = Self;
 
-    fn into_deserializer(self) -> Self {
-        self
-    }
-}
+//     fn into_deserializer(self) -> Self {
+//         self
+//     }
+// }
 
 pub struct VacantEntry<'a> {
     vacant: VacantEntryImpl<'a>,
