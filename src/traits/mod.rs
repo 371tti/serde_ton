@@ -1,4 +1,4 @@
-use chrono::{DateTime, Duration, Utc};
+use chrono::{DateTime, Duration, FixedOffset, Utc};
 use serde::{ser::Error, Serialize, Serializer};
 use half::f16;
 use uuid::Uuid;
@@ -10,7 +10,9 @@ pub trait ExtendedSerializer: Sized + Serializer {
     type ExtendSerializeMap: ExtendSerializeMap<Ok = Self::Ok, Error = Self::Error>;
     fn serialize_f16(self, v: f16) -> Result<Self::Ok, Self::Error>;
     fn serialize_uuid(self, v: &Uuid) -> Result<Self::Ok, Self::Error>;
-    fn serialize_datetime(self, v: &DateTime<Utc>) -> Result<Self::Ok, Self::Error>;
+    fn serialize_datetime<Tz>(self, v: &DateTime<Tz>) -> Result<Self::Ok, Self::Error>
+    where
+        Tz: chrono::TimeZone + ?Sized;
     fn serialize_timestamp(self, v: i64) -> Result<Self::Ok, Self::Error>;
     fn serialize_duration(self, v: &Duration) -> Result<Self::Ok, Self::Error>;
     fn serialize_wrapped_json(

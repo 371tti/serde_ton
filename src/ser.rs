@@ -1,5 +1,6 @@
 use std::io::Write;
 
+use chrono::FixedOffset;
 use serde::ser::SerializeSeq;
 use serde::{ser, Serialize, Serializer};
 
@@ -113,6 +114,7 @@ where
     type ExtendSerializeSeq = Compound<'a, W>;
     type ExtendSerializeMap = Compound<'a, W>;
 
+    #[inline]
     fn serialize_f16(self, v: half::f16) -> Result<Self::Ok, Self::Error> {
         let mut buf: [u8; 3] = [0; 3];
         buf[0..2].copy_from_slice(&v.to_bits().to_le_bytes());
@@ -122,6 +124,7 @@ where
         Ok(())
     }
     
+    #[inline]
     fn serialize_uuid(self, v: &uuid::Uuid) -> Result<Self::Ok, Self::Error> {
         let mut buf: [u8; 17] = [0; 17];
         buf[0..16].copy_from_slice(v.as_bytes());
@@ -131,10 +134,22 @@ where
         Ok(())
     }
     
-    fn serialize_datetime(self, v: &chrono::DateTime<chrono::Utc>) -> Result<Self::Ok, Self::Error> {
-        todo!()
+    #[inline]
+    fn serialize_datetime<Tz>(self, v: &chrono::DateTime<Tz>) -> Result<Self::Ok, Self::Error>
+    where
+        Tz: chrono::TimeZone + ?Sized {
+        let rfc_str = v.to_rfc3339();
+        let bytes = rfc_str.as_bytes();
+        let size = bytes.len();
+        let (header, header_size) = generate_header(prefix::DATETIME, size);
+        // 日時データを逆順に格納
+        let value = bytes.iter().chain(header[..header_size].iter().rev());
+        self.write_iter(value)?;
+        self.size += size + header_size;
+        Ok(())
     }
     
+    #[inline]
     fn serialize_timestamp(self, v: i64) -> Result<Self::Ok, Self::Error> {
         let mut buf: [u8; 9] = [0; 9];
         buf[0..8].copy_from_slice(&v.to_le_bytes());
@@ -144,6 +159,7 @@ where
         Ok(())
     }
     
+    #[inline]
     fn serialize_duration(self, v: &chrono::Duration) -> Result<Self::Ok, Self::Error> {
         let mut buf: [u8; 9] = [0; 9];
         buf[0..8].copy_from_slice(&v.num_nanoseconds().unwrap_or(0).to_le_bytes());
@@ -153,6 +169,7 @@ where
         Ok(())
     }
     
+    #[inline]
     fn serialize_wrapped_json(
         self,
         v: &serde_json::Value,
@@ -168,18 +185,36 @@ where
         Ok(())
     }
     
+    #[inline]
     fn serialize_meta(self, v: &Box<crate::value::value::Value>) -> Result<Self::Ok, Self::Error> {
-        todo!()
+        let start_pos = self.size;
+        v.ex_serialize(&mut *self)?;
+        let (header, header_size) = generate_header(prefix::META, self.size - start_pos);
+        self.write_iter(header[..header_size].iter().rev())?;
+        self.size += header_size;
+        Ok(())
     }
     
+    #[inline]
     fn serialize_padding(self, v: usize) -> Result<Self::Ok, Self::Error> {
-        todo!()
+        if v == 0 {
+            return Ok(());
+        }
+        let buf = vec![0u8; v];
+        let (header, header_size) = generate_header(prefix::PADDING, v);
+        // パディングデータを逆順に格納
+        let value = buf.iter().chain(header[..header_size].iter().rev());
+        self.write_iter(value)?;
+        self.size += v + header_size;
+        Ok(())
     }
 
+    #[inline]
     fn ex_serialize_seq(self, _len: Option<usize>) -> Result<Self::ExtendSerializeSeq, Self::Error> {
         Ok(Compound::new(self))
     }
 
+    #[inline]
     fn ex_serialize_map(self, _len: Option<usize>) -> Result<Self::ExtendSerializeMap, Self::Error> {
         Ok(Compound::new(self))
     }

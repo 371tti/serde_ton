@@ -1,6 +1,6 @@
 use std::hash::Hash;
 
-use chrono::{DateTime, Duration, Utc};
+use chrono::{DateTime, Duration, FixedOffset, Utc};
 use serde::{Deserialize, Serialize, Serializer};
 use uuid::Uuid;
 
@@ -81,7 +81,7 @@ pub enum Value {
     /// 
     /// ISO8601 equivalent に準拠しています。
     /// UTF-8 エンコーディングを使用します。
-    DateTime(DateTime<Utc>),
+    DateTime(DateTime<FixedOffset>),
 
     /// Timestamp 型
     /// 値がタイムスタンプであることを示す型
@@ -138,7 +138,7 @@ pub enum KeyValue {
     String(String),
     Bytes(Vec<u8>),
     UUID(Uuid),
-    DateTime(DateTime<Utc>),
+    DateTime(DateTime<FixedOffset>),
     Timestamp(i64),
     Duration(Duration),
 }

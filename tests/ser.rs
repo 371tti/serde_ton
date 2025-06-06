@@ -2,7 +2,8 @@
 
 use serde::ser::SerializeSeq;
 use serde_ton::ser::{generate_header, ReverseSerializer};
-use serde_ton::traits::ExtendedSerializer;
+use serde_ton::traits::{ExtendSerialize, ExtendedSerializer};
+use serde_ton::value::prefix::prefix::DATETIME;
 use std::io::Write;
 
 use serde::{ser, Serialize, Serializer};
@@ -476,6 +477,102 @@ fn test_serialize_uuid() {
     expected.extend_from_slice(uuid_bytes);
     expected.push(prefix::UUID | SIZE_PREFIX_1BYTE);
 }
+
+#[test]
+fn test_serialize_datetime() {
+    let mut out = Vec::new();
+    let datetime = chrono::Utc::now();
+    {
+        let mut serializer = ReverseSerializer::new(&mut out);
+        serializer.serialize_datetime(&datetime).unwrap();
+        serializer.flash().unwrap();
+    }
+    // For DateTime, we write 17 bytes: [DateTime bytes in little endian, prefix::DATETIME | SIZE_PREFIX_1BYTE]
+    let datetime_bytes = datetime.to_rfc3339().as_bytes().to_vec();
+    let len = datetime_bytes.len();
+    let (header, header_size) = generate_header(DATETIME, len);
+    let value = datetime_bytes.iter().chain(header[..header_size].iter().rev()).cloned().collect::<Vec<_>>();
+    assert_eq!(out, value);
+}
+
+#[test]
+fn test_serialize_timestamp() {
+    let mut out = Vec::new();
+    let timestamp = chrono::Utc::now().timestamp();
+    {
+        let mut serializer = ReverseSerializer::new(&mut out);
+        serializer.serialize_timestamp(timestamp).unwrap();
+        serializer.flash().unwrap();
+    }
+    // For Timestamp, we write 9 bytes: [Timestamp bytes in little endian, prefix::TIMESTAMP | SIZE_PREFIX_1BYTE]
+    let timestamp_bytes = timestamp.to_le_bytes();
+    let expected = vec![timestamp_bytes[0], timestamp_bytes[1], timestamp_bytes[2], timestamp_bytes[3], timestamp_bytes[4], timestamp_bytes[5], timestamp_bytes[6], timestamp_bytes[7], prefix::TIMESTAMP | SIZE_PREFIX_8BYTE];
+    assert_eq!(out, expected);
+}
+
+#[test]
+fn test_serialize_duration() {
+    let mut out = Vec::new();
+    let duration = chrono::Duration::seconds(42);
+    {
+        let mut serializer = ReverseSerializer::new(&mut out);
+        serializer.serialize_duration(&duration).unwrap();
+        serializer.flash().unwrap();
+    }
+    // For Duration, we write 9 bytes: [Duration bytes in little endian, prefix::DURATION | SIZE_PREFIX_1BYTE]
+    let duration_bytes = duration.num_nanoseconds().unwrap().to_le_bytes();
+    let expected = vec![duration_bytes[0], duration_bytes[1], duration_bytes[2], duration_bytes[3], duration_bytes[4], duration_bytes[5], duration_bytes[6], duration_bytes[7], prefix::DURATION | SIZE_PREFIX_8BYTE];
+    assert_eq!(out, expected);
+}
+
+#[test]
+fn test_serialize_wrapped_json() {
+    let mut out = Vec::new();
+    let json_value = serde_json::json!({"key": "value"});
+    {
+        let mut serializer = ReverseSerializer::new(&mut out);
+        serializer.serialize_wrapped_json(&json_value).unwrap();
+        serializer.flash().unwrap();
+    }
+    // For Wrapped JSON, we write the JSON bytes followed by the prefix
+    let json_bytes = serde_json::to_vec(&json_value).unwrap();
+    let len = json_bytes.len();
+    let (header, header_size) = generate_header(prefix::WRAPPED_JSON, len);
+    let value = json_bytes.iter().chain(header[..header_size].iter().rev()).cloned().collect::<Vec<_>>();
+    assert_eq!(out, value);
+}
+
+#[test]
+fn test_serialize_meta() {
+    let mut out = Vec::new();
+    let meta_value = serde_ton::value::value::Value::Meta(
+        Box::new(serde_ton::value::value::Value::String("meta_value".to_string()))
+    );
+    {
+        let mut serializer = ReverseSerializer::new(&mut out);
+        meta_value.ex_serialize(&mut serializer).unwrap();
+        serializer.flash().unwrap();
+    }
+    // For Meta, we write the meta value bytes followed by the prefix
+    let expected = vec![b'm', b'e', b't', b'a', b'_', b'v', b'a', b'l', b'u', b'e', 10, prefix::STRING | SIZE_PREFIX_1BYTE, 12, prefix::META | SIZE_PREFIX_1BYTE];
+    assert_eq!(out, expected);
+}
+
+#[test]
+fn test_serialize_padding() {
+    let mut out = Vec::new();
+    {
+        let mut serializer = ReverseSerializer::new(&mut out);
+        serializer.serialize_padding(5).unwrap();
+        serializer.flash().unwrap();
+    }
+    // For padding, we write 5 bytes of zero followed by the prefix
+    let expected = vec![0, 0, 0, 0, 0, 5, prefix::PADDING | SIZE_PREFIX_1BYTE];
+    assert_eq!(out, expected);
+}
+
+
+
 
 #[test]
 fn test_generate_header() {
