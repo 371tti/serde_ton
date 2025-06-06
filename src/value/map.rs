@@ -1,9 +1,5 @@
 use std::{borrow::Borrow, collections::{btree_map, BTreeMap}, hash::Hasher, ops::Deref};
 
-use serde::de;
-
-use crate::error::Error;
-
 use super::value::{KeyValue, Value};
 use std::hash::Hash;
 

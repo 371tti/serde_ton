@@ -1,7 +1,7 @@
 use std::hash::Hash;
 
-use chrono::{DateTime, Duration, FixedOffset, Utc};
-use serde::{Deserialize, Serialize, Serializer};
+use chrono::{DateTime, Duration, FixedOffset};
+use serde::Serialize;
 use uuid::Uuid;
 
 use crate::traits::{ExtendSerialize, ExtendSerializeMap, ExtendSerializeSeq, ExtendedSerializer};

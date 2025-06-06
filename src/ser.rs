@@ -1,7 +1,5 @@
 use std::io::Write;
 
-use chrono::FixedOffset;
-use serde::ser::SerializeSeq;
 use serde::{ser, Serialize, Serializer};
 
 use crate::traits::{ExtendSerialize, ExtendSerializeMap, ExtendSerializeSeq, ExtendSerializeStruct, ExtendSerializeStructVariant, ExtendSerializeTuple, ExtendSerializeTupleStruct, ExtendSerializeTupleVariant, ExtendedSerializer};

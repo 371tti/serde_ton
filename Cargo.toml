@@ -20,3 +20,6 @@ criterion = "0.5.1"
 name = "benchmark"
 harness = false
 
+[profile.release]
+opt-level = 3         # 速度最適化
+debug = false         # デバッグ情報の削減
