@@ -19,6 +19,8 @@ impl Error {
         match &self.err.code {
             ErrorCode::Message(_) => Category::InvalidType,
             ErrorCode::Io(_) => Category::Io,
+            ErrorCode::NotFoundTarget => Category::Syntax,
+            ErrorCode::InvalidType => Category::InvalidType,
         }
     }
 
@@ -52,6 +54,8 @@ pub struct ErrorImpl {
 pub(crate) enum ErrorCode {
     Message(String),
     Io(io::Error),
+    NotFoundTarget,
+    InvalidType,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -115,6 +119,8 @@ impl Display for ErrorCode {
         match self {
             ErrorCode::Message(msg) => f.write_str(msg),
             ErrorCode::Io(err) => Display::fmt(err, f),
+            ErrorCode::NotFoundTarget => f.write_str("Target not found"),
+            ErrorCode::InvalidType => f.write_str("Invalid type"),
         }
     }
 }

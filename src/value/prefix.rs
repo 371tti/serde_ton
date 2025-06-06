@@ -1,6 +1,6 @@
 pub mod prefix {
     pub const UNDEFINED:        u8 = 0b111111_00; // 0xFC
-    pub const NULL:             u8 = 0b000000_00; // 0x00
+    pub const NONE:             u8 = 0b000000_00; // 0x00
     pub const BOOL:             u8 = 0b000001_00; // 0x04 ~ 0x05
     pub const INT:              u8 = 0b000010_00; // 0x08 ~ 0x0B
     pub const UINT:             u8 = 0b000011_00; // 0x0C ~ 0x0F
@@ -22,7 +22,7 @@ pub mod prefix {
 pub mod prefix_pua_utf8 {
     // 私用領域 (PUA)
     pub const UNDEFINED:        &str = "$undefined"; // 私用領域 (開始)
-    pub const NULL:             &str = "$null";      // NULL (カスタム)
+    pub const NONE:             &str = "$none";      // None (カスタム)
     pub const BOOL:             &str = "$bool";      // Boolean
     pub const INT:              &str = "$int";       // Integer
     pub const UINT:             &str = "$uint";      // Unsigned Integer
@@ -39,4 +39,11 @@ pub mod prefix_pua_utf8 {
 
     pub const META:             &str = "$meta";      // Meta
     pub const PADDING:          &str = "$padding";   // Padding
+}
+
+pub mod size_prefix {
+    pub const SIZE_PREFIX_1BYTE: u8 = 0b000000_00;
+    pub const SIZE_PREFIX_2BYTE: u8 = 0b000000_01;
+    pub const SIZE_PREFIX_4BYTE: u8 = 0b000000_10;
+    pub const SIZE_PREFIX_8BYTE: u8 = 0b000000_11;
 }
