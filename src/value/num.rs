@@ -3,6 +3,8 @@ use std::hash::Hasher;
 use serde::{Deserialize, Serialize};
 use half::f16;
 
+use crate::traits::{ExtendSerialize, ExtendedSerializer};
+
 #[derive(Serialize, Deserialize, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub enum Int {
     I8(i8),
@@ -19,11 +21,25 @@ pub enum UInt {
     U64(u64),
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialOrd)]
+#[derive(Deserialize, Debug, Clone, PartialOrd)]
 pub enum Float {
     F16(f16),
     F32(f32),
     F64(f64),
+}
+
+impl ExtendSerialize for Float {
+    fn ex_serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: ExtendedSerializer,
+    {
+        match self {
+            Float::F16(v) => serializer.serialize_f16(*v),
+            Float::F32(v) => serializer.serialize_f32(*v),
+            Float::F64(v) => serializer.serialize_f64(*v),
+        }
+    }
+    
 }
 
 impl Eq for Float {}

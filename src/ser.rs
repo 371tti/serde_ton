@@ -1,7 +1,9 @@
 use std::io::Write;
 
+use serde::ser::SerializeSeq;
 use serde::{ser, Serialize, Serializer};
 
+use crate::traits::{ExtendSerialize, ExtendSerializeMap, ExtendSerializeSeq, ExtendSerializeStruct, ExtendSerializeStructVariant, ExtendSerializeTuple, ExtendSerializeTupleStruct, ExtendSerializeTupleVariant, ExtendedSerializer};
 use crate::{error::Error, value::prefix::prefix};
 use crate::value::prefix::size_prefix::{SIZE_PREFIX_1BYTE, SIZE_PREFIX_2BYTE, SIZE_PREFIX_4BYTE, SIZE_PREFIX_8BYTE};
 /// Reverse TON シリアライザー
@@ -101,6 +103,85 @@ where
     #[inline]
     pub fn into_inner(self) -> W {
         self.writer
+    }
+}
+
+impl<'a, W> ExtendedSerializer for &'a mut ReverseSerializer<W>
+where
+    W: Write,
+{
+    type ExtendSerializeSeq = Compound<'a, W>;
+    type ExtendSerializeMap = Compound<'a, W>;
+
+    fn serialize_f16(self, v: half::f16) -> Result<Self::Ok, Self::Error> {
+        let mut buf: [u8; 3] = [0; 3];
+        buf[0..2].copy_from_slice(&v.to_bits().to_le_bytes());
+        buf[2] = prefix::FLOAT | SIZE_PREFIX_2BYTE;
+        self.write_iter(buf.iter())?;
+        self.size += 3;
+        Ok(())
+    }
+    
+    fn serialize_uuid(self, v: &uuid::Uuid) -> Result<Self::Ok, Self::Error> {
+        let mut buf: [u8; 17] = [0; 17];
+        buf[0..16].copy_from_slice(v.as_bytes());
+        buf[16] = prefix::UUID;
+        self.write_iter(buf.iter())?;
+        self.size += 17;
+        Ok(())
+    }
+    
+    fn serialize_datetime(self, v: &chrono::DateTime<chrono::Utc>) -> Result<Self::Ok, Self::Error> {
+        todo!()
+    }
+    
+    fn serialize_timestamp(self, v: i64) -> Result<Self::Ok, Self::Error> {
+        let mut buf: [u8; 9] = [0; 9];
+        buf[0..8].copy_from_slice(&v.to_le_bytes());
+        buf[8] = prefix::TIMESTAMP | SIZE_PREFIX_8BYTE;
+        self.write_iter(buf.iter())?;
+        self.size += 9;
+        Ok(())
+    }
+    
+    fn serialize_duration(self, v: &chrono::Duration) -> Result<Self::Ok, Self::Error> {
+        let mut buf: [u8; 9] = [0; 9];
+        buf[0..8].copy_from_slice(&v.num_nanoseconds().unwrap_or(0).to_le_bytes());
+        buf[8] = prefix::DURATION | SIZE_PREFIX_8BYTE;
+        self.write_iter(buf.iter())?;
+        self.size += 9;
+        Ok(())
+    }
+    
+    fn serialize_wrapped_json(
+        self,
+        v: &serde_json::Value,
+    ) -> Result<Self::Ok, Self::Error> {
+        let json_str = v.to_string();
+        let bytes = json_str.as_bytes();
+        let size = bytes.len();
+        let (header, header_size) = generate_header(prefix::WRAPPED_JSON, size);
+        // JSONデータを逆順に格納
+        let value = bytes.iter().chain(header[..header_size].iter().rev());
+        self.write_iter(value)?;
+        self.size += size + header_size;
+        Ok(())
+    }
+    
+    fn serialize_meta(self, v: &Box<crate::value::value::Value>) -> Result<Self::Ok, Self::Error> {
+        todo!()
+    }
+    
+    fn serialize_padding(self, v: usize) -> Result<Self::Ok, Self::Error> {
+        todo!()
+    }
+
+    fn ex_serialize_seq(self, _len: Option<usize>) -> Result<Self::ExtendSerializeSeq, Self::Error> {
+        Ok(Compound::new(self))
+    }
+
+    fn ex_serialize_map(self, _len: Option<usize>) -> Result<Self::ExtendSerializeMap, Self::Error> {
+        Ok(Compound::new(self))
     }
 }
 
@@ -435,6 +516,38 @@ where
     }
 }
 
+impl <'a, W> ExtendSerializeSeq for Compound<'a, W>
+where
+    W: Write,
+{
+    type Ok = ();
+    type Error = Error;
+
+    #[inline]
+    fn serialize_element<T>(&mut self, value: &T) -> Result<(), Self::Error>
+    where
+        T: ?Sized + ExtendSerialize {
+        value.ex_serialize(&mut *self.ser)?;
+        Ok(())
+    }
+
+    #[inline]
+    fn end(self) -> Result<Self::Ok, Self::Error> {
+        // ネストを抜ける
+        self.ser.deep -= 1;
+        // シーケンスの合計サイズを計算
+        let seq_size = self.ser.size - self.start_pos;
+        // ヘッダを生成
+        let (header, header_size) = generate_header(prefix::ARRAY, seq_size);
+        // ヘッダを書き込み
+        self.ser.write_iter(header[..header_size].iter().rev())?;
+        // ヘッダ分のサイズを加算
+        self.ser.size += header_size;
+        Ok(())
+    }
+    
+}
+
 impl <'a, W> ser::SerializeTuple for Compound<'a, W>
 where
     W: Write,
@@ -448,6 +561,37 @@ where
     where
         T: ?Sized + ser::Serialize {
         value.serialize(&mut *self.ser)?;
+        Ok(())
+    }
+
+    #[inline]
+    fn end(self) -> Result<Self::Ok, Self::Error> {
+        // ネストを抜ける
+        self.ser.deep -= 1;
+        // シーケンスの合計サイズを計算
+        let seq_size = self.ser.size - self.start_pos;
+        // ヘッダを生成
+        let (header, header_size) = generate_header(prefix::ARRAY, seq_size);
+        // ヘッダを書き込み
+        self.ser.write_iter(header[..header_size].iter().rev())?;
+        // ヘッダ分のサイズを加算
+        self.ser.size += header_size;
+        Ok(())
+    }
+}
+
+impl <'a, W> ExtendSerializeTuple for Compound<'a, W>
+where
+    W: Write,
+{
+    type Ok = ();
+    type Error = Error;
+
+    #[inline]
+    fn serialize_element<T>(&mut self, value: &T) -> Result<(), Self::Error>
+    where
+        T: ?Sized + ExtendSerialize {
+        value.ex_serialize(&mut *self.ser)?;
         Ok(())
     }
 
@@ -499,6 +643,38 @@ where
     }
 }
 
+impl <'a, W> ExtendSerializeTupleStruct for Compound<'a, W>
+where
+    W: Write,
+{
+    type Ok = ();
+    type Error = Error;
+
+    #[inline]
+    fn serialize_field<T>(&mut self, value: &T) -> Result<(), Self::Error>
+    where
+        T: ?Sized + ExtendSerialize {
+        value.ex_serialize(&mut *self.ser)?;
+        Ok(())
+    }
+
+    #[inline]
+    fn end(self) -> Result<Self::Ok, Self::Error> {
+        // ネストを抜ける
+        self.ser.deep -= 1;
+        // シーケンスの合計サイズを計算
+        let seq_size = self.ser.size - self.start_pos;
+        // ヘッダを生成
+        let (header, header_size) = generate_header(prefix::ARRAY, seq_size);
+        // ヘッダを書き込み
+        self.ser.write_iter(header[..header_size].iter().rev())?;
+        // ヘッダ分のサイズを加算
+        self.ser.size += header_size;
+        Ok(())
+    }
+    
+}
+
 impl <'a, W> ser::SerializeTupleVariant for Compound<'a, W>
 where
     W: Write,
@@ -539,6 +715,48 @@ where
         self.ser.size += object_header_size;
         Ok(())
     }
+}
+
+impl <'a, W> ExtendSerializeTupleVariant for Compound<'a, W>
+where
+    W: Write,
+{
+    type Ok = ();
+    type Error = Error;
+
+    #[inline]
+    fn serialize_field<T>(&mut self, value: &T) -> Result<(), Self::Error>
+    where
+        T: ?Sized + ExtendSerialize {
+        value.ex_serialize(&mut *self.ser)?;
+        Ok(())
+    }
+
+    #[inline]
+    fn end(self) -> Result<Self::Ok, Self::Error> {
+        // ネストを抜ける(seq と map 分)
+        self.ser.deep -= 2;
+        // シーケンスの合計サイズを計算
+        let seq_size = self.ser.size - self.start_pos;
+        // seqヘッダを生成
+        let (array_header, array_header_size) = generate_header(prefix::ARRAY, seq_size);
+        // seqヘッダを書き込み
+        let array_header_iter = array_header[..array_header_size].iter();
+        self.ser.write_iter(array_header_iter.rev())?;
+        self.ser.size += array_header_size;
+        // mapのkeyをシリアライズ
+        self.ser.serialize_str(self.variant_name.unwrap())?;
+        // マップの合計サイズを計算
+        let map_size = self.ser.size - self.start_pos;
+        // mapヘッダを生成
+        let (object_header, object_header_size) = generate_header(prefix::OBJECT, map_size);
+        // ヘッダを書き込み
+        let object_header_iter = object_header[..object_header_size].iter();
+        self.ser.write_iter(object_header_iter.rev())?;
+        self.ser.size += object_header_size;
+        Ok(())
+    }
+    
 }
 
 impl <'a, W> ser::SerializeMap for Compound<'a, W>
@@ -594,6 +812,58 @@ where
     }
 }
 
+impl <'a, W> ExtendSerializeMap for Compound<'a, W>
+where
+    W: Write,
+{
+    type Ok = ();
+    type Error = Error;
+
+    #[inline]
+    fn serialize_entry<K, V>(&mut self, key: &K, value: &V) -> Result<(), Self::Error>
+        where
+            K: ?Sized + ExtendSerialize,
+            V: ?Sized + ExtendSerialize, {
+        
+        // 逆順のため、valueを先にシリアライズ
+        value.ex_serialize(&mut *self.ser)?;
+        key.ex_serialize(&mut *self.ser)?;
+
+        Ok(())
+    }
+
+    #[inline]
+    fn serialize_key<T>(&mut self, key: &T) -> Result<(), Self::Error>
+    where
+        T: ?Sized + ExtendSerialize {
+        key.ex_serialize(&mut *self.ser)?;
+        Ok(())
+    }
+
+    #[inline]
+    fn serialize_value<T>(&mut self, value: &T) -> Result<(), Self::Error>
+    where
+        T: ?Sized + ExtendSerialize {
+        value.ex_serialize(&mut *self.ser)?;
+        Ok(())
+    }
+
+    #[inline]
+    fn end(self) -> Result<Self::Ok, Self::Error> {
+        // ネストを抜ける
+        self.ser.deep -= 1;
+        // Mapの合計サイズを計算
+        let seq_size = self.ser.size - self.start_pos;
+        // ヘッダを生成
+        let (header, header_size) = generate_header(prefix::OBJECT, seq_size);
+        // ヘッダを書き込み
+        self.ser.write_iter(header[..header_size].iter().rev())?;
+        // ヘッダ分のサイズを加算
+        self.ser.size += header_size;
+        Ok(())
+    }
+}
+
 impl <'a, W> ser::SerializeStruct for Compound<'a, W>
 where
     W: Write,
@@ -608,6 +878,39 @@ where
         T: ?Sized + ser::Serialize {
         // 逆順のため、valueを先にシリアライズ
         value.serialize(&mut *self.ser)?;
+        key.serialize(&mut *self.ser)?;
+        Ok(())
+    }
+
+    #[inline]
+    fn end(self) -> Result<Self::Ok, Self::Error> {
+        // ネストを抜ける
+        self.ser.deep -= 1;
+        // Structの合計サイズを計算
+        let seq_size = self.ser.size - self.start_pos;
+        // ヘッダを生成
+        let (header, header_size) = generate_header(prefix::OBJECT, seq_size);
+        // ヘッダを書き込み
+        self.ser.write_iter(header[..header_size].iter().rev())?;
+        // ヘッダ分のサイズを加算
+        self.ser.size += header_size;
+        Ok(())
+    }
+}
+
+impl <'a, W> ExtendSerializeStruct for Compound<'a, W>
+where
+    W: Write,
+{
+    type Ok = ();
+    type Error = Error;
+
+    #[inline]
+    fn serialize_field<T>(&mut self, key: &'static str, value: &T) -> Result<(), Self::Error>
+    where
+        T: ?Sized + ExtendSerialize {
+        // 逆順のため、valueを先にシリアライズ
+        value.ex_serialize(&mut *self.ser)?;
         key.serialize(&mut *self.ser)?;
         Ok(())
     }
@@ -670,6 +973,50 @@ where
         self.ser.size += outer_struct_header_size;
         Ok(())
     }
+}
+
+impl <'a, W> ExtendSerializeStructVariant for Compound<'a, W>
+where
+    W: Write,
+{
+    type Ok = ();
+    type Error = Error;
+
+    #[inline]
+    fn serialize_field<T>(&mut self, key: &'static str, value: &T) -> Result<(), Self::Error>
+    where
+        T: ?Sized + ExtendSerialize {
+        // 逆順のため、valueを先にシリアライズ
+        value.ex_serialize(&mut *self.ser)?;
+        key.serialize(&mut *self.ser)?;
+        Ok(())
+    }
+
+    #[inline]
+    fn end(self) -> Result<Self::Ok, Self::Error> {
+        // ネストを抜ける(map と map 分)
+        self.ser.deep -= 2;
+        // structの合計サイズを計算
+        let seq_size = self.ser.size - self.start_pos;
+        // structのヘッダを生成
+        let (header, header_size) = generate_header(prefix::OBJECT, seq_size);
+        // structヘッダを書き込み
+        self.ser.write_iter(header[..header_size].iter().rev())?;
+        // ヘッダ分のサイズを加算
+        self.ser.size += header_size;
+        // mapのkeyをシリアライズ
+        self.ser.serialize_str(self.variant_name.unwrap())?;
+        // outer_structの合計サイズを計算
+        let outer_struct_size = self.ser.size - self.start_pos;
+        // outer_structのヘッダを生成
+        let (outer_struct_header, outer_struct_header_size) = generate_header(prefix::OBJECT, outer_struct_size);
+        // outer_structヘッダを書き込み
+        self.ser.write_iter(outer_struct_header[..outer_struct_header_size].iter().rev())?;
+        // ヘッダ分のサイズを加算
+        self.ser.size += outer_struct_header_size;
+        Ok(())
+    }
+    
 }
 
 /// 反転したheaderを生成する

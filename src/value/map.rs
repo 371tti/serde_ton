@@ -1,4 +1,4 @@
-use std::{borrow::Borrow, collections::{btree_map, BTreeMap}, hash::Hasher};
+use std::{borrow::Borrow, collections::{btree_map, BTreeMap}, hash::Hasher, ops::Deref};
 
 use serde::de;
 
@@ -160,6 +160,15 @@ impl Map<KeyValue, Value> {
 impl Hash for Map<KeyValue, Value> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.map.hash(state);
+    }
+}
+
+impl Deref for Map<KeyValue, Value> {
+    type Target = MapImpl<KeyValue, Value>;
+
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        &self.map
     }
 }
 

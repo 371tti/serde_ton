@@ -2,6 +2,7 @@
 
 use serde::ser::SerializeSeq;
 use serde_ton::ser::{generate_header, ReverseSerializer};
+use serde_ton::traits::ExtendedSerializer;
 use std::io::Write;
 
 use serde::{ser, Serialize, Serializer};
@@ -444,6 +445,36 @@ fn test_serialize_struct_variant() {
         50, prefix::OBJECT | SIZE_PREFIX_1BYTE,
     ];
     assert_eq!(out, expected);
+}
+
+#[test]
+fn test_serialize_f16() {
+    let mut out = Vec::new();
+    {
+        let mut serializer = ReverseSerializer::new(&mut out);
+        serializer.serialize_f16(half::f16::from_f32(42.0f32)).unwrap();
+        serializer.flash().unwrap();
+    }
+    // For f16, we write five bytes: [42.0 bytes in little endian, prefix::FLOAT | SIZE_PREFIX_4BYTE]
+    let f16_bytes = half::f16::from_f32(42.0f32).to_le_bytes();
+    let expected = vec![f16_bytes[0], f16_bytes[1], prefix::FLOAT | SIZE_PREFIX_2BYTE];
+    assert_eq!(out, expected);
+}
+
+#[test]
+fn test_serialize_uuid() {
+    let mut out = Vec::new();
+    let uuid = uuid::Uuid::parse_str("123e4567-e89b-12d3-a456-426614174000").unwrap();
+    {
+        let mut serializer = ReverseSerializer::new(&mut out);
+        serializer.serialize_uuid(&uuid).unwrap();
+        serializer.flash().unwrap();
+    }
+    // For UUID, we write 17 bytes: [UUID bytes in little endian, prefix::UUID | SIZE_PREFIX_1BYTE]
+    let uuid_bytes = uuid.as_bytes();
+    let mut expected = Vec::with_capacity(17);
+    expected.extend_from_slice(uuid_bytes);
+    expected.push(prefix::UUID | SIZE_PREFIX_1BYTE);
 }
 
 #[test]

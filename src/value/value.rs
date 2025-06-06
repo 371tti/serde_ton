@@ -1,8 +1,10 @@
 use std::hash::Hash;
 
 use chrono::{DateTime, Duration, Utc};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, Serializer};
 use uuid::Uuid;
+
+use crate::traits::{ExtendSerialize, ExtendSerializeMap, ExtendSerializeSeq, ExtendedSerializer};
 
 use super::{map::Map, num::{Float, Int, UInt}};
 
@@ -141,24 +143,63 @@ pub enum KeyValue {
     Duration(Duration),
 }
 
-impl Serialize for KeyValue {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+impl ExtendSerialize for KeyValue {
+    fn ex_serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
-        S: serde::Serializer,
+        S: ExtendedSerializer,
     {
         match self {
-            Self::Undefined => self.serialize(serializer),
-            Self::None => self.serialize(serializer),
+            Self::Undefined => self.ex_serialize(serializer),
+            Self::None => self.ex_serialize(serializer),
             Self::Bool(v) => v.serialize(serializer),
             Self::Int(v) => v.serialize(serializer),
             Self::UInt(v) => v.serialize(serializer),
-            Self::Float(v) => v.serialize(serializer),
+            Self::Float(v) => v.ex_serialize(serializer),
             Self::String(v) => v.serialize(serializer),
             Self::Bytes(v) => v.serialize(serializer),
-            Self::UUID(v) => v.to_string().serialize(serializer),
-            Self::DateTime(v) => v.serialize(serializer),
-            Self::Timestamp(v) => v.serialize(serializer),
-            Self::Duration(v) => v.serialize(serializer),
+            Self::UUID(v) => serializer.serialize_uuid(v),
+            Self::DateTime(v) => serializer.serialize_datetime(v),
+            Self::Timestamp(v) => serializer.serialize_timestamp(*v),
+            Self::Duration(v) => serializer.serialize_duration(v),
+        }
+    }
+}
+
+impl ExtendSerialize for Value {
+    fn ex_serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: ExtendedSerializer,
+    {
+        match self {
+            Self::Undefined => serializer.serialize_padding(0),
+            Self::None => serializer.serialize_padding(0),
+            Self::Bool(v) => v.serialize(serializer),
+            Self::Int(v) => v.serialize(serializer),
+            Self::UInt(v) => v.serialize(serializer),
+            Self::Float(v) => v.ex_serialize(serializer),
+            Self::String(v) => v.serialize(serializer),
+            Self::Bytes(v) => v.serialize(serializer),
+            Self::UUID(v) => serializer.serialize_uuid(v),
+            Self::DateTime(v) => serializer.serialize_datetime(v),
+            Self::Timestamp(v) => serializer.serialize_timestamp(*v),
+            Self::Duration(v) => serializer.serialize_duration(v),
+            Self::Array(v) => {
+                let mut seq = serializer.ex_serialize_seq(Some(v.len()))?;
+                for item in v {
+                    seq.serialize_element(item)?;
+                }
+                seq.end()
+            },
+            Self::Object(v) => {
+                let mut map = serializer.ex_serialize_map(None)?;
+                for (key, value) in v.iter() {
+                    map.serialize_key(key)?;
+                    map.serialize_value(value)?;
+                }
+                map.end()
+            },
+            Self::WrappedJSON(v) => serializer.serialize_wrapped_json(v),
+            Self::Meta(v) => serializer.serialize_meta(v),
         }
     }
 }

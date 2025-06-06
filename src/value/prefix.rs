@@ -19,8 +19,7 @@ pub mod prefix {
     pub const PADDING:          u8 = 0b001111_00; // 0x3C ~ 0x3F
 }
 
-pub mod prefix_pua_utf8 {
-    // 私用領域 (PUA)
+pub mod prefix_str {
     pub const UNDEFINED:        &str = "$undefined"; // 私用領域 (開始)
     pub const NONE:             &str = "$none";      // None (カスタム)
     pub const BOOL:             &str = "$bool";      // Boolean
