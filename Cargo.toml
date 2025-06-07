@@ -7,7 +7,7 @@ edition = "2024"
 preserve_order = []
 
 [dependencies]
-half = { version = "2.4.1", features = ["serde"] }
+half = { version = "2.6.0", features = ["serde"] }
 serde = { version = "1.0.218", features = ["derive"] }
 uuid = "1.13.1"
 chrono = { version = "0.4.39", features = ["serde"] }
@@ -22,4 +22,5 @@ harness = false
 
 [profile.release]
 opt-level = 3         # 速度最適化
+lto = "fat"           # より積極的な Link Time Optimization
 debug = false         # デバッグ情報の削減

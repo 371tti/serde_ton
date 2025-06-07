@@ -60,23 +60,34 @@ where
     where
         I: Iterator<Item = &'a u8>,
     {
-        let cp = self.buffer.capacity();
-        let mut rem_cp = cp - self.buffer.len();
-        'outer: loop {
-            for _ in 0..rem_cp {
-                if let Some(b) = iterator.next() {
-                    self.buffer.push(*b);
-                } else {
-                    break 'outer;
-                }
-            }
-            self.flash()?;
-            rem_cp = cp;
-        }
-        if self.deep == 0 {
-            self.flash()?;
-        }
+        // let cp = self.buffer.capacity();
+        // let mut rem_cp = cp - self.buffer.len();
+        // 'outer: loop {
+        //     for _ in 0..rem_cp {
+        //         if let Some(b) = iterator.next() {
+        //             self.buffer.push(*b);
+        //         } else {
+        //             break 'outer;
+        //         }
+        //     }
+        //     self.flash()?;
+        //     rem_cp = cp;
+        // }
+        // if self.deep == 0 {
+        //     self.flash()?;
+        // }
 
+        // Ok(())
+ 
+        for b in iterator {
+            self.writer.write_all(&[*b]).map_err(Error::io)?;
+        }
+        Ok(())
+    }
+
+    #[inline]
+    fn write_bytes(&mut self, bytes: &[u8]) -> Result<(), Error> {
+        self.writer.write_all(bytes).map_err(Error::io)?;
         Ok(())
     }
 
