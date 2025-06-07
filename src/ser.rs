@@ -13,7 +13,6 @@ where
     W: Write,
 {
     writer: W,
-    buffer: Vec<u8>,
     size: usize,
     deep: usize,
 }
@@ -32,70 +31,13 @@ where
         Self {
             writer,
             size: 0,
-            buffer: Vec::with_capacity(256/*default capacity*/),
             deep: 0,
         }
-    }
-
-    #[inline]
-    pub fn with_capacity(writer: W, capacity: usize) -> Self {
-        Self {
-            writer,
-            size: 0,
-            buffer: Vec::with_capacity(capacity),
-            deep: 0,
-        }
-    }
-
-    /// バッファに書き込む
-    /// 
-    /// バッファのキャパがいっぱいになるとflashします
-    /// 深さが0の場合、必ずすべてを書ききります
-    /// 
-    /// iterator: I
-    /// 
-    /// return: Result<(), Error>
-    #[inline]
-    fn write_iter<'a, I>(&mut self, mut iterator: I) -> Result<(), Error>
-    where
-        I: Iterator<Item = &'a u8>,
-    {
-        // let cp = self.buffer.capacity();
-        // let mut rem_cp = cp - self.buffer.len();
-        // 'outer: loop {
-        //     for _ in 0..rem_cp {
-        //         if let Some(b) = iterator.next() {
-        //             self.buffer.push(*b);
-        //         } else {
-        //             break 'outer;
-        //         }
-        //     }
-        //     self.flash()?;
-        //     rem_cp = cp;
-        // }
-        // if self.deep == 0 {
-        //     self.flash()?;
-        // }
-
-        // Ok(())
- 
-        for b in iterator {
-            self.writer.write_all(&[*b]).map_err(Error::io)?;
-        }
-        Ok(())
     }
 
     #[inline]
     fn write_bytes(&mut self, bytes: &[u8]) -> Result<(), Error> {
         self.writer.write_all(bytes).map_err(Error::io)?;
-        Ok(())
-    }
-
-    /// バッファの内容をフラッシュする
-    #[inline]
-    pub fn flash(&mut self) -> Result<(), Error> {
-        self.writer.write_all(&self.buffer).map_err(Error::io)?;
-        self.buffer.truncate(0);
         Ok(())
     }
 
@@ -128,7 +70,7 @@ where
         let mut buf: [u8; 3] = [0; 3];
         buf[0..2].copy_from_slice(&v.to_bits().to_le_bytes());
         buf[2] = prefix::FLOAT | SIZE_PREFIX_2BYTE;
-        self.write_iter(buf.iter())?;
+        self.write_bytes(&buf)?;
         self.size += 3;
         Ok(())
     }
@@ -138,7 +80,7 @@ where
         let mut buf: [u8; 17] = [0; 17];
         buf[0..16].copy_from_slice(v.as_bytes());
         buf[16] = prefix::UUID;
-        self.write_iter(buf.iter())?;
+        self.write_bytes(&buf)?;
         self.size += 17;
         Ok(())
     }
@@ -152,8 +94,8 @@ where
         let size = bytes.len();
         let (header, header_size) = generate_header(prefix::DATETIME, size);
         // 日時データを逆順に格納
-        let value = bytes.iter().chain(header[..header_size].iter().rev());
-        self.write_iter(value)?;
+        self.write_bytes(&bytes)?;
+        self.write_bytes(&header[..header_size])?;
         self.size += size + header_size;
         Ok(())
     }
@@ -163,7 +105,7 @@ where
         let mut buf: [u8; 9] = [0; 9];
         buf[0..8].copy_from_slice(&v.to_le_bytes());
         buf[8] = prefix::TIMESTAMP | SIZE_PREFIX_8BYTE;
-        self.write_iter(buf.iter())?;
+        self.write_bytes(&buf)?;
         self.size += 9;
         Ok(())
     }
@@ -173,7 +115,7 @@ where
         let mut buf: [u8; 9] = [0; 9];
         buf[0..8].copy_from_slice(&v.num_nanoseconds().unwrap_or(0).to_le_bytes());
         buf[8] = prefix::DURATION | SIZE_PREFIX_8BYTE;
-        self.write_iter(buf.iter())?;
+        self.write_bytes(&buf)?;
         self.size += 9;
         Ok(())
     }
@@ -188,8 +130,8 @@ where
         let size = bytes.len();
         let (header, header_size) = generate_header(prefix::WRAPPED_JSON, size);
         // JSONデータを逆順に格納
-        let value = bytes.iter().chain(header[..header_size].iter().rev());
-        self.write_iter(value)?;
+        self.write_bytes(&bytes)?;
+        self.write_bytes(&header[..header_size])?;
         self.size += size + header_size;
         Ok(())
     }
@@ -199,7 +141,7 @@ where
         let start_pos = self.size;
         v.ex_serialize(&mut *self)?;
         let (header, header_size) = generate_header(prefix::META, self.size - start_pos);
-        self.write_iter(header[..header_size].iter().rev())?;
+        self.write_bytes(&header[..header_size])?;
         self.size += header_size;
         Ok(())
     }
@@ -212,8 +154,8 @@ where
         let buf = vec![0u8; v];
         let (header, header_size) = generate_header(prefix::PADDING, v);
         // パディングデータを逆順に格納
-        let value = buf.iter().chain(header[..header_size].iter().rev());
-        self.write_iter(value)?;
+        self.write_bytes(&buf)?;
+        self.write_bytes(&header[..header_size])?;
         self.size += v + header_size;
         Ok(())
     }
@@ -248,7 +190,7 @@ where
     fn serialize_bool(self, v: bool) -> Result<Self::Ok, Self::Error> {
         // <header: <prefix: 6bit, value: 1bit>
         let value = [prefix::BOOL | (v as u8).to_be()];
-        self.write_iter(value.iter())?;
+        self.write_bytes(&value)?;
         self.size += 1;
         Ok(())
     }
@@ -258,7 +200,7 @@ where
         let mut buf: [u8; 2] = [0; 2];
         buf[0] = v.to_le() as u8;
         buf[1] = prefix::INT | SIZE_PREFIX_1BYTE;
-        self.write_iter(buf.iter())?;
+        self.write_bytes(&buf)?;
         self.size += 2;
         Ok(())
     }
@@ -268,7 +210,7 @@ where
         let mut buf: [u8; 3] = [0; 3];
         buf[0..2].copy_from_slice(&v.to_le_bytes());
         buf[2] = prefix::INT | SIZE_PREFIX_2BYTE;
-        self.write_iter(buf.iter())?;
+        self.write_bytes(&buf)?;
         self.size += 3;
         Ok(())
     }
@@ -278,7 +220,7 @@ where
         let mut buf: [u8; 5] = [0; 5];
         buf[0..4].copy_from_slice(&v.to_le_bytes());
         buf[4] = prefix::INT | SIZE_PREFIX_4BYTE;
-        self.write_iter(buf.iter())?;
+        self.write_bytes(&buf)?;
         self.size += 5;
         Ok(())
     }
@@ -287,7 +229,7 @@ where
         let mut buf: [u8; 9] = [0; 9];
         buf[0..8].copy_from_slice(&v.to_le_bytes());
         buf[8] = prefix::INT | SIZE_PREFIX_8BYTE;
-        self.write_iter(buf.iter())?;
+        self.write_bytes(&buf)?;
         self.size += 9;
         Ok(())
     }
@@ -297,7 +239,7 @@ where
         let mut buf= [0u8; 2];
         buf[0] = v.to_le();
         buf[1] = prefix::UINT | SIZE_PREFIX_1BYTE;
-        self.write_iter(buf.iter())?;
+        self.write_bytes(&buf)?;
         self.size += 2;
         Ok(())
     }
@@ -307,7 +249,7 @@ where
         let mut buf: [u8; 3] = [0; 3];
         buf[0..2].copy_from_slice(&v.to_le_bytes());
         buf[2] = prefix::UINT | SIZE_PREFIX_2BYTE;
-        self.write_iter(buf.iter())?;
+        self.write_bytes(&buf)?;
         self.size += 3;
         Ok(())
     }
@@ -317,7 +259,7 @@ where
         let mut buf: [u8; 5] = [0; 5];
         buf[0..4].copy_from_slice(&v.to_le_bytes());
         buf[4] = prefix::UINT | SIZE_PREFIX_4BYTE;
-        self.write_iter(buf.iter())?;
+        self.write_bytes(&buf)?;
         self.size += 5;
         Ok(())
     }
@@ -327,7 +269,7 @@ where
         let mut buf: [u8; 9] = [0; 9];
         buf[0..8].copy_from_slice(&v.to_le_bytes());
         buf[8] = prefix::UINT | SIZE_PREFIX_8BYTE;
-        self.write_iter(buf.iter())?;
+        self.write_bytes(&buf)?;
         self.size += 9;
         Ok(())
     }
@@ -337,7 +279,7 @@ where
         let mut buf: [u8; 5] = [0; 5];
         buf[0..4].copy_from_slice(&v.to_le_bytes());
         buf[4] = prefix::FLOAT | SIZE_PREFIX_4BYTE;
-        self.write_iter(buf.iter())?;
+        self.write_bytes(&buf)?;
         self.size += 5;
         Ok(())
     }
@@ -347,7 +289,7 @@ where
         let mut buf: [u8; 9] = [0; 9];
         buf[0..8].copy_from_slice(&v.to_le_bytes());
         buf[8] = prefix::FLOAT | SIZE_PREFIX_8BYTE;
-        self.write_iter(buf.iter())?;
+        self.write_bytes(&buf)?;
         self.size += 9;
         Ok(())
     }
@@ -363,8 +305,8 @@ where
         let size = bytes.len();
         let (header, header_size) = generate_header(prefix::STRING, size);
         // 文字列データを逆順に格納
-        let value = bytes.iter().chain(header[..header_size].iter().rev());
-        self.write_iter(value)?;
+        self.write_bytes(bytes)?;
+        self.write_bytes(&header[..header_size])?;
         self.size += size + header_size;
         Ok(())
     }
@@ -374,8 +316,8 @@ where
         let size = v.len();
         let (header, header_size) = generate_header(prefix::BYTES, size);
         // バイトデータを逆順に格納
-        let value = v.iter().chain(header[..header_size].iter().rev());
-        self.write_iter(value)?;
+        self.write_bytes(v)?;
+        self.write_bytes(&header[..header_size])?;
         self.size += size + header_size;
         Ok(())
     }
@@ -383,7 +325,7 @@ where
     #[inline]
     fn serialize_none(self) -> Result<Self::Ok, Self::Error> {
         let value = [prefix::NONE];
-        self.write_iter(value.iter())?;
+        self.write_bytes(&value)?;
         self.size += 1;
         Ok(())
     }
@@ -435,7 +377,7 @@ where
         self.serialize_some(value)?;
         self.serialize_str(variant)?;
         let (header, header_size) = generate_header(prefix::OBJECT, self.size - start_pos);
-        self.write_iter(header[..header_size].iter().rev())?;
+        self.write_bytes(&header[..header_size])?;
         self.size += header_size;
         Ok(())
     }
@@ -553,7 +495,7 @@ where
         // ヘッダを生成
         let (header, header_size) = generate_header(prefix::ARRAY, seq_size);
         // ヘッダを書き込み
-        self.ser.write_iter(header[..header_size].iter().rev())?;
+        self.ser.write_bytes(&header[..header_size])?;
         // ヘッダ分のサイズを加算
         self.ser.size += header_size;
         Ok(())
@@ -584,7 +526,7 @@ where
         // ヘッダを生成
         let (header, header_size) = generate_header(prefix::ARRAY, seq_size);
         // ヘッダを書き込み
-        self.ser.write_iter(header[..header_size].iter().rev())?;
+        self.ser.write_bytes(&header[..header_size])?;
         // ヘッダ分のサイズを加算
         self.ser.size += header_size;
         Ok(())
@@ -617,7 +559,7 @@ where
         // ヘッダを生成
         let (header, header_size) = generate_header(prefix::ARRAY, seq_size);
         // ヘッダを書き込み
-        self.ser.write_iter(header[..header_size].iter().rev())?;
+        self.ser.write_bytes(&header[..header_size])?;
         // ヘッダ分のサイズを加算
         self.ser.size += header_size;
         Ok(())
@@ -648,7 +590,7 @@ where
         // ヘッダを生成
         let (header, header_size) = generate_header(prefix::ARRAY, seq_size);
         // ヘッダを書き込み
-        self.ser.write_iter(header[..header_size].iter().rev())?;
+        self.ser.write_bytes(&header[..header_size])?;
         // ヘッダ分のサイズを加算
         self.ser.size += header_size;
         Ok(())
@@ -680,7 +622,7 @@ where
         // ヘッダを生成
         let (header, header_size) = generate_header(prefix::ARRAY, seq_size);
         // ヘッダを書き込み
-        self.ser.write_iter(header[..header_size].iter().rev())?;
+        self.ser.write_bytes(&header[..header_size])?;
         // ヘッダ分のサイズを加算
         self.ser.size += header_size;
         Ok(())
@@ -711,7 +653,7 @@ where
         // ヘッダを生成
         let (header, header_size) = generate_header(prefix::ARRAY, seq_size);
         // ヘッダを書き込み
-        self.ser.write_iter(header[..header_size].iter().rev())?;
+        self.ser.write_bytes(&header[..header_size])?;
         // ヘッダ分のサイズを加算
         self.ser.size += header_size;
         Ok(())
@@ -744,8 +686,7 @@ where
         // seqヘッダを生成
         let (array_header, array_header_size) = generate_header(prefix::ARRAY, seq_size);
         // seqヘッダを書き込み
-        let array_header_iter = array_header[..array_header_size].iter();
-        self.ser.write_iter(array_header_iter.rev())?;
+        self.ser.write_bytes(&array_header[..array_header_size])?;
         self.ser.size += array_header_size;
         // mapのkeyをシリアライズ
         self.ser.serialize_str(self.variant_name.unwrap())?;
@@ -754,8 +695,7 @@ where
         // mapヘッダを生成
         let (object_header, object_header_size) = generate_header(prefix::OBJECT, map_size);
         // ヘッダを書き込み
-        let object_header_iter = object_header[..object_header_size].iter();
-        self.ser.write_iter(object_header_iter.rev())?;
+        self.ser.write_bytes(&object_header[..object_header_size])?;
         self.ser.size += object_header_size;
         Ok(())
     }
@@ -785,8 +725,7 @@ where
         // seqヘッダを生成
         let (array_header, array_header_size) = generate_header(prefix::ARRAY, seq_size);
         // seqヘッダを書き込み
-        let array_header_iter = array_header[..array_header_size].iter();
-        self.ser.write_iter(array_header_iter.rev())?;
+        self.ser.write_bytes(&array_header[..array_header_size])?;
         self.ser.size += array_header_size;
         // mapのkeyをシリアライズ
         self.ser.serialize_str(self.variant_name.unwrap())?;
@@ -795,8 +734,7 @@ where
         // mapヘッダを生成
         let (object_header, object_header_size) = generate_header(prefix::OBJECT, map_size);
         // ヘッダを書き込み
-        let object_header_iter = object_header[..object_header_size].iter();
-        self.ser.write_iter(object_header_iter.rev())?;
+        self.ser.write_bytes(&object_header[..object_header_size])?;
         self.ser.size += object_header_size;
         Ok(())
     }
@@ -849,7 +787,7 @@ where
         // ヘッダを生成
         let (header, header_size) = generate_header(prefix::OBJECT, seq_size);
         // ヘッダを書き込み
-        self.ser.write_iter(header[..header_size].iter().rev())?;
+        self.ser.write_bytes(&header[..header_size])?;
         // ヘッダ分のサイズを加算
         self.ser.size += header_size;
         Ok(())
@@ -901,7 +839,7 @@ where
         // ヘッダを生成
         let (header, header_size) = generate_header(prefix::OBJECT, seq_size);
         // ヘッダを書き込み
-        self.ser.write_iter(header[..header_size].iter().rev())?;
+        self.ser.write_bytes(&header[..header_size])?;
         // ヘッダ分のサイズを加算
         self.ser.size += header_size;
         Ok(())
@@ -935,7 +873,7 @@ where
         // ヘッダを生成
         let (header, header_size) = generate_header(prefix::OBJECT, seq_size);
         // ヘッダを書き込み
-        self.ser.write_iter(header[..header_size].iter().rev())?;
+        self.ser.write_bytes(&header[..header_size])?;
         // ヘッダ分のサイズを加算
         self.ser.size += header_size;
         Ok(())
@@ -968,7 +906,7 @@ where
         // ヘッダを生成
         let (header, header_size) = generate_header(prefix::OBJECT, seq_size);
         // ヘッダを書き込み
-        self.ser.write_iter(header[..header_size].iter().rev())?;
+        self.ser.write_bytes(&header[..header_size])?;
         // ヘッダ分のサイズを加算
         self.ser.size += header_size;
         Ok(())
@@ -1002,7 +940,7 @@ where
         // structのヘッダを生成
         let (header, header_size) = generate_header(prefix::OBJECT, seq_size);
         // structヘッダを書き込み
-        self.ser.write_iter(header[..header_size].iter().rev())?;
+        self.ser.write_bytes(&header[..header_size])?;
         // ヘッダ分のサイズを加算
         self.ser.size += header_size;
         // mapのkeyをシリアライズ
@@ -1012,7 +950,7 @@ where
         // outer_structのヘッダを生成
         let (outer_struct_header, outer_struct_header_size) = generate_header(prefix::OBJECT, outer_struct_size);
         // outer_structヘッダを書き込み
-        self.ser.write_iter(outer_struct_header[..outer_struct_header_size].iter().rev())?;
+        self.ser.write_bytes(&outer_struct_header[..outer_struct_header_size])?;
         // ヘッダ分のサイズを加算
         self.ser.size += outer_struct_header_size;
         Ok(())
@@ -1045,7 +983,7 @@ where
         // structのヘッダを生成
         let (header, header_size) = generate_header(prefix::OBJECT, seq_size);
         // structヘッダを書き込み
-        self.ser.write_iter(header[..header_size].iter().rev())?;
+        self.ser.write_bytes(&header[..header_size])?;
         // ヘッダ分のサイズを加算
         self.ser.size += header_size;
         // mapのkeyをシリアライズ
@@ -1055,7 +993,7 @@ where
         // outer_structのヘッダを生成
         let (outer_struct_header, outer_struct_header_size) = generate_header(prefix::OBJECT, outer_struct_size);
         // outer_structヘッダを書き込み
-        self.ser.write_iter(outer_struct_header[..outer_struct_header_size].iter().rev())?;
+        self.ser.write_bytes(&outer_struct_header[..outer_struct_header_size])?;
         // ヘッダ分のサイズを加算
         self.ser.size += outer_struct_header_size;
         Ok(())
@@ -1074,26 +1012,26 @@ pub fn generate_header(prefix: u8, size_of_byte: usize) -> ([u8; 9], usize) {
     match size_of_byte {
         s if s <= u8::MAX as usize => {
             let mut buf = [0; 9];
-            buf[0] = prefix | SIZE_PREFIX_1BYTE;
-            buf[1] = s.to_le() as u8;
+            buf[0] = s.to_le() as u8;
+            buf[1] = prefix | SIZE_PREFIX_1BYTE;
             (buf, 2)
         },
         s if s <= u16::MAX as usize => {
             let mut buf = [0; 9];
-            buf[0] = prefix | SIZE_PREFIX_2BYTE;
-            buf[1..3].copy_from_slice(&(s as u16).to_le_bytes());
+            buf[0..2].copy_from_slice(&(s as u16).to_le_bytes());
+            buf[2] = prefix | SIZE_PREFIX_2BYTE;
             (buf, 3)
         },
         s if s <= u32::MAX as usize => {
             let mut buf = [0; 9];
-            buf[0] = prefix | SIZE_PREFIX_4BYTE;
-            buf[1..5].copy_from_slice(&(s as u32).to_le_bytes());
+            buf[0..4].copy_from_slice(&(s as u32).to_le_bytes());
+            buf[4] = prefix | SIZE_PREFIX_4BYTE;
             (buf, 5)
         },
         s => {
             let mut buf = [0; 9];
-            buf[0] = prefix | SIZE_PREFIX_8BYTE;
-            buf[1..9].copy_from_slice(&(s as u64).to_le_bytes());
+            buf[0..8].copy_from_slice(&(s as u64).to_le_bytes());
+            buf[8] = prefix | SIZE_PREFIX_8BYTE;
             (buf, 9)
         },
     }
