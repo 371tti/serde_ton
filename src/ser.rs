@@ -2,12 +2,12 @@ use std::io::Write;
 
 use serde::{ser, Serialize, Serializer};
 
-use crate::traits::{ExtendSerialize, ExtendSerializeMap, ExtendSerializeSeq, ExtendSerializeStruct, ExtendSerializeStructVariant, ExtendSerializeTuple, ExtendSerializeTupleStruct, ExtendSerializeTupleVariant, ExtendedSerializer};
+use crate::traits::ser::{ExtendSerialize, ExtendSerializeMap, ExtendSerializeSeq, ExtendSerializeStruct, ExtendSerializeStructVariant, ExtendSerializeTuple, ExtendSerializeTupleStruct, ExtendSerializeTupleVariant, ExtendedSerializer};
+use crate::value::prefix::self_describe;
 use crate::{error::Error, value::prefix::prefix};
 use crate::value::prefix::size_prefix::{SIZE_PREFIX_1BYTE, SIZE_PREFIX_2BYTE, SIZE_PREFIX_4BYTE, SIZE_PREFIX_8BYTE};
-/// Reverse TON シリアライザー
-/// 
-/// cp 8bit 単位で逆順にストリームでシリアライズします
+
+/// A structure for serializing Rust values to RTON.
 pub struct ReverseSerializer<W>
 where
     W: Write,
@@ -21,11 +21,7 @@ impl<W> ReverseSerializer<W>
 where
     W: Write,
 {
-    /// 新しいReverseSerializerを作る
-    /// 
-    /// writer: W
-    /// 
-    /// return: ReverseSerializer
+    /// Create a new RTON serializer
     #[inline]
     pub fn new(writer: W) -> Self {
         Self {
@@ -35,6 +31,25 @@ where
         }
     }
 
+    /// Unwrap the `Writer` from the `Serializer`.
+    #[inline]
+    pub fn into_inner(self) -> W {
+        self.writer
+    }
+    
+    /// Writes a RTON self-describe tag to the stream.
+    ///
+    /// Tagging allows a decoder to distinguish different file formats based on their content
+    /// without further information.
+    #[inline]
+    pub fn self_describe(&mut self) -> Result<(), Error> {
+        self.write_bytes(&self_describe::TON_V1_REV_TAG)?;
+        self.size += self_describe::TON_V1_REV_TAG.len();
+        Ok(())
+    }
+    
+
+    /// Wrap Writer
     #[inline]
     fn write_bytes(&mut self, bytes: &[u8]) -> Result<(), Error> {
         self.writer.write_all(bytes).map_err(Error::io)?;
@@ -48,16 +63,11 @@ where
     pub fn size(&self) -> usize {
         self.size
     }
-
-    /// writerを取り出す
-    /// 
-    /// return: &W
-    #[inline]
-    pub fn into_inner(self) -> W {
-        self.writer
-    }
 }
 
+/// Implement the `ExtendedSerializer` trait for `ReverseSerializer`.
+/// 
+/// This trait provides methods for serializing various types, including custom types like `f16`, `Uuid`, and `chrono::DateTime`.
 impl<'a, W> ExtendedSerializer for &'a mut ReverseSerializer<W>
 where
     W: Write,
@@ -171,6 +181,9 @@ where
     }
 }
 
+/// Implement the `Serializer` trait for `ReverseSerializer`.
+/// 
+/// This trait provides methods for serializing various types, including primitive types, strings, and sequences.
 impl<'a, W> ser::Serializer for &'a mut ReverseSerializer<W> 
 where 
     W: Write,
@@ -1001,39 +1014,37 @@ where
     
 }
 
-/// 反転したheaderを生成する
+/// Generate reverse serialization header.
 /// 
-/// prefix: u8 // 型情報
-/// size_of_byte: u64 // データ本体のサイズ
+/// prefix: u8 // header prefix
+/// size_of_byte: usize // data size
 /// 
-/// return: ([u8; 9], u8) // header, headerのサイズ
+/// return: ([u8; 9], usize) // header, header size
 #[inline]
 pub fn generate_header(prefix: u8, size_of_byte: usize) -> ([u8; 9], usize) {
-    match size_of_byte {
-        s if s <= u8::MAX as usize => {
-            let mut buf = [0; 9];
-            buf[0] = s.to_le() as u8;
-            buf[1] = prefix | SIZE_PREFIX_1BYTE;
-            (buf, 2)
-        },
-        s if s <= u16::MAX as usize => {
-            let mut buf = [0; 9];
-            buf[0..2].copy_from_slice(&(s as u16).to_le_bytes());
-            buf[2] = prefix | SIZE_PREFIX_2BYTE;
-            (buf, 3)
-        },
-        s if s <= u32::MAX as usize => {
-            let mut buf = [0; 9];
-            buf[0..4].copy_from_slice(&(s as u32).to_le_bytes());
-            buf[4] = prefix | SIZE_PREFIX_4BYTE;
-            (buf, 5)
-        },
-        s => {
-            let mut buf = [0; 9];
-            buf[0..8].copy_from_slice(&(s as u64).to_le_bytes());
-            buf[8] = prefix | SIZE_PREFIX_8BYTE;
-            (buf, 9)
-        },
+    let mut buf = [0u8; 9];
+
+    if size_of_byte <= u8::MAX as usize {
+        buf[0] = size_of_byte as u8;
+        buf[1] = prefix | SIZE_PREFIX_1BYTE;
+        return (buf, 2);
     }
+
+    if size_of_byte <= u16::MAX as usize {
+        buf[0..2].copy_from_slice(&(size_of_byte as u16).to_le_bytes());
+        buf[2] = prefix | SIZE_PREFIX_2BYTE;
+        return (buf, 3);
+    }
+
+    if size_of_byte <= u32::MAX as usize {
+        buf[0..4].copy_from_slice(&(size_of_byte as u32).to_le_bytes());
+        buf[4] = prefix | SIZE_PREFIX_4BYTE;
+        return (buf, 5);
+    }
+
+    buf[0..8].copy_from_slice(&(size_of_byte as u64).to_le_bytes());
+    buf[8] = prefix | SIZE_PREFIX_8BYTE;
+    (buf, 9)
 }
+
 

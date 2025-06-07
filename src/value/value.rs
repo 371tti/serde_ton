@@ -4,7 +4,7 @@ use chrono::{DateTime, Duration, FixedOffset};
 use serde::Serialize;
 use uuid::Uuid;
 
-use crate::traits::{ExtendSerialize, ExtendSerializeMap, ExtendSerializeSeq, ExtendedSerializer};
+use crate::traits::ser::{ExtendSerialize, ExtendSerializeMap, ExtendSerializeSeq, ExtendedSerializer};
 
 use super::{map::Map, num::{Float, Int, UInt}};
 

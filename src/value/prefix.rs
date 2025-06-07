@@ -1,3 +1,10 @@
+pub mod self_describe {
+    pub const TON_V1_REV_TAG: [u8; 4] = [MAGIC[0], MAGIC[1], VERSION, MODE_REV];
+    pub const MAGIC: [u8; 2] = [0x37, 0x17];
+    pub const VERSION: u8 = 0x01; // バージョン番号
+    pub const MODE_REV: u8 = 0x01;
+}
+
 pub mod prefix {
     pub const UNDEFINED:        u8 = 0b111111_00; // 0xFC
     pub const NONE:             u8 = 0b000000_00; // 0x00

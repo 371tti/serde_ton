@@ -3,7 +3,7 @@ use std::hash::Hasher;
 use serde::{Deserialize, Serialize};
 use half::f16;
 
-use crate::traits::{ExtendSerialize, ExtendedSerializer};
+use crate::traits::ser::{ExtendSerialize, ExtendedSerializer};
 
 #[derive(Serialize, Deserialize, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub enum Int {

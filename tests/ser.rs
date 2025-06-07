@@ -2,13 +2,11 @@
 
 use serde::ser::SerializeSeq;
 use serde_ton::ser::{generate_header, ReverseSerializer};
-use serde_ton::traits::{ExtendSerialize, ExtendedSerializer};
+use serde_ton::traits::ser::{ExtendSerialize, ExtendedSerializer};
 use serde_ton::value::prefix::prefix::DATETIME;
-use std::io::Write;
+use serde::{Serialize, Serializer};
 
-use serde::{ser, Serialize, Serializer};
-
-use serde_ton::{error::Error, value::prefix::prefix};
+use serde_ton::value::prefix::prefix;
 use serde_ton::value::prefix::size_prefix::{SIZE_PREFIX_1BYTE, SIZE_PREFIX_2BYTE, SIZE_PREFIX_4BYTE, SIZE_PREFIX_8BYTE};
 
 use std::collections::HashMap;
@@ -408,8 +406,7 @@ fn test_serialize_struct_variant() {
         value.serialize(&mut serializer).unwrap();
     }
     let expected = vec![
-        b'H', b'e', b'l', b'l', b'o', b',', b' ', b'w', b'o', b'r', b'l', b'd', b'!', 13,
-        prefix::STRING | SIZE_PREFIX_1BYTE,
+        b'H', b'e', b'l', b'l', b'o', b',', b' ', b'w', b'o', b'r', b'l', b'd', b'!', 13, prefix::STRING | SIZE_PREFIX_1BYTE,
         b'f', b'i', b'e', b'l', b'd', b'1', 6, prefix::STRING | SIZE_PREFIX_1BYTE,
         42, prefix::UINT | SIZE_PREFIX_1BYTE,
         b'f', b'i', b'e', b'l', b'd', b'2', 6, prefix::STRING | SIZE_PREFIX_1BYTE,
