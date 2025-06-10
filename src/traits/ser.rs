@@ -83,7 +83,7 @@ pub trait ExtendSerializeMap {
         K: ?Sized + ExtendSerialize,
         V: ?Sized + ExtendSerialize,
     {
-        r#try!(self.serialize_key(key));
+        self.serialize_key(key)?;
         self.serialize_value(value)
     }
     fn end(self) -> Result<Self::Ok, Self::Error>;
@@ -115,14 +115,4 @@ pub trait ExtendSerializeStructVariant {
         Ok(())
     }
     fn end(self) -> Result<Self::Ok, Self::Error>;
-}
-
-fn iterator_len_hint<I>(iter: &I) -> Option<usize>
-where
-    I: Iterator,
-{
-    match iter.size_hint() {
-        (lo, Some(hi)) if lo == hi => Some(lo),
-        _ => None,
-    }
 }
