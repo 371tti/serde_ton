@@ -52,4 +52,5 @@ pub mod size_prefix {
     pub const SIZE_PREFIX_2BYTE: u8 = 0b000000_01;
     pub const SIZE_PREFIX_4BYTE: u8 = 0b000000_10;
     pub const SIZE_PREFIX_8BYTE: u8 = 0b000000_11;
+    pub const MASK: u8 = 0b000000_11; // サイズプレフィックスのマスク
 }
