@@ -23,12 +23,14 @@ where
 {
     /// Create a new RTON serializer
     #[inline]
-    pub fn new(writer: W) -> Self {
-        Self {
+    pub fn new(writer: W) -> Result<Self, Error> {
+        let mut this = Self {
             writer,
             size: 0,
             deep: 0,
-        }
+        };
+        this.write_self_describe()?;
+        Ok(this)
     }
 
     /// Unwrap the `Writer` from the `Serializer`.
@@ -41,8 +43,10 @@ where
     ///
     /// Tagging allows a decoder to distinguish different file formats based on their content
     /// without further information.
+    /// これ先頭に書いてもRTON自体データから始まるから変別つかなくて不味い。
+    /// 絶対に最初に書く必要がある。
     #[inline]
-    pub fn self_describe(&mut self) -> Result<(), Error> {
+    fn write_self_describe(&mut self) -> Result<(), Error> {
         self.write_bytes(&self_describe::TON_V1_REV_TAG)?;
         self.size += self_describe::TON_V1_REV_TAG.len();
         Ok(())

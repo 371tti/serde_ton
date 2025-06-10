@@ -9,7 +9,7 @@ enum TestEnum {
 fn main() {
     let structur = TestEnum::A("H".to_string(), 7);
 
-    let mut ser = ReverseSerializer::new(Vec::new());
+    let mut ser = ReverseSerializer::new(Vec::new()).unwrap();
     structur.serialize(&mut ser).unwrap();
     let size = ser.size();
     let mut output = ser.into_inner();

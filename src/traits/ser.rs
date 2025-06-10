@@ -1,6 +1,6 @@
 
-use chrono::{DateTime, Duration, FixedOffset, Utc};
-use serde::{ser::Error, Serialize, Serializer};
+use chrono::{DateTime, Duration};
+use serde::{ser::Error, Serializer};
 use half::f16;
 use uuid::Uuid;
 

@@ -76,7 +76,7 @@ fn bench_serde_ton(c: &mut Criterion) {
     let test = generate_struct();
     c.bench_function("serde_ton serialize", |b| {
         b.iter(|| {
-            let mut ser = ReverseSerializer::new(Vec::new());
+            let mut ser = ReverseSerializer::new(Vec::new()).unwrap();
             test.serialize(&mut ser).unwrap();
             let _output = ser.into_inner();
         })
