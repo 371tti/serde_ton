@@ -13,8 +13,8 @@ where
     W: Write,
 {
     writer: W,
-    size: usize,
-    deep: usize,
+    size: u64,
+    deep: u64,
 }
 
 impl<W> ReverseSerializer<W>
@@ -23,14 +23,12 @@ where
 {
     /// Create a new RTON serializer
     #[inline]
-    pub fn new(writer: W) -> Result<Self, Error> {
-        let mut this = Self {
+    pub fn new(writer: W) -> Self {
+        Self {
             writer,
             size: 0,
             deep: 0,
-        };
-        this.write_self_describe()?;
-        Ok(this)
+        }
     }
 
     /// Unwrap the `Writer` from the `Serializer`.
@@ -46,9 +44,9 @@ where
     /// これ先頭に書いてもRTON自体データから始まるから変別つかなくて不味い。
     /// 絶対に最初に書く必要がある。
     #[inline]
-    fn write_self_describe(&mut self) -> Result<(), Error> {
+    pub fn write_self_describe(&mut self) -> Result<(), Error> {
         self.write_bytes(&self_describe::TON_V1_REV_TAG)?;
-        self.size += self_describe::TON_V1_REV_TAG.len();
+        self.size += self_describe::TON_V1_REV_TAG.len() as u64;
         Ok(())
     }
     
@@ -64,7 +62,7 @@ where
     /// 
     /// return: u64
     #[inline]
-    pub fn size(&self) -> usize {
+    pub fn size(&self) -> u64 {
         self.size
     }
 }
@@ -106,11 +104,11 @@ where
         let rfc_str = v.to_rfc3339();
         let bytes = rfc_str.as_bytes();
         let size = bytes.len();
-        let (header, header_size) = generate_header(prefix::DATETIME, size);
+        let (header, header_size) = generate_header(prefix::DATETIME, size as u64);
         // 日時データを逆順に格納
         self.write_bytes(&bytes)?;
         self.write_bytes(&header[..header_size])?;
-        self.size += size + header_size;
+        self.size += (size + header_size) as u64;
         Ok(())
     }
     
@@ -142,11 +140,11 @@ where
         let json_str = v.to_string();
         let bytes = json_str.as_bytes();
         let size = bytes.len();
-        let (header, header_size) = generate_header(prefix::WRAPPED_JSON, size);
+        let (header, header_size) = generate_header(prefix::WRAPPED_JSON, size as u64);
         // JSONデータを逆順に格納
         self.write_bytes(&bytes)?;
         self.write_bytes(&header[..header_size])?;
-        self.size += size + header_size;
+        self.size += (size + header_size) as u64;
         Ok(())
     }
     
@@ -156,7 +154,7 @@ where
         v.ex_serialize(&mut *self)?;
         let (header, header_size) = generate_header(prefix::META, self.size - start_pos);
         self.write_bytes(&header[..header_size])?;
-        self.size += header_size;
+        self.size += header_size as u64;
         Ok(())
     }
     
@@ -166,11 +164,11 @@ where
             return Ok(());
         }
         let buf = vec![0u8; v];
-        let (header, header_size) = generate_header(prefix::PADDING, v);
+        let (header, header_size) = generate_header(prefix::PADDING, v as u64);
         // パディングデータを逆順に格納
         self.write_bytes(&buf)?;
         self.write_bytes(&header[..header_size])?;
-        self.size += v + header_size;
+        self.size += (v + header_size) as u64;
         Ok(())
     }
 
@@ -320,22 +318,22 @@ where
     fn serialize_str(self, v: &str) -> Result<Self::Ok, Self::Error> {
         let bytes = v.as_bytes();
         let size = bytes.len();
-        let (header, header_size) = generate_header(prefix::STRING, size);
+        let (header, header_size) = generate_header(prefix::STRING, size as u64);
         // 文字列データを逆順に格納
         self.write_bytes(bytes)?;
         self.write_bytes(&header[..header_size])?;
-        self.size += size + header_size;
+        self.size += (size + header_size) as u64;
         Ok(())
     }
     
     #[inline]
     fn serialize_bytes(self, v: &[u8]) -> Result<Self::Ok, Self::Error> {
         let size = v.len();
-        let (header, header_size) = generate_header(prefix::BYTES, size);
+        let (header, header_size) = generate_header(prefix::BYTES, size as u64);
         // バイトデータを逆順に格納
         self.write_bytes(v)?;
         self.write_bytes(&header[..header_size])?;
-        self.size += size + header_size;
+        self.size += (size + header_size) as u64;
         Ok(())
     }
 
@@ -395,7 +393,7 @@ where
         self.serialize_str(variant)?;
         let (header, header_size) = generate_header(prefix::OBJECT, self.size - start_pos);
         self.write_bytes(&header[..header_size])?;
-        self.size += header_size;
+        self.size += header_size as u64;
         Ok(())
     }
 
@@ -453,7 +451,7 @@ where
     W: Write,
 {
     ser: &'a mut ReverseSerializer<W>,
-    start_pos: usize,
+    start_pos: u64,
     variant_name: Option<&'static str>,
 }
 
@@ -514,7 +512,7 @@ where
         // ヘッダを書き込み
         self.ser.write_bytes(&header[..header_size])?;
         // ヘッダ分のサイズを加算
-        self.ser.size += header_size;
+        self.ser.size += header_size as u64;
         Ok(())
     }
 }
@@ -545,7 +543,7 @@ where
         // ヘッダを書き込み
         self.ser.write_bytes(&header[..header_size])?;
         // ヘッダ分のサイズを加算
-        self.ser.size += header_size;
+        self.ser.size += header_size as u64;
         Ok(())
     }
     
@@ -578,7 +576,7 @@ where
         // ヘッダを書き込み
         self.ser.write_bytes(&header[..header_size])?;
         // ヘッダ分のサイズを加算
-        self.ser.size += header_size;
+        self.ser.size += header_size as u64;
         Ok(())
     }
 }
@@ -609,7 +607,7 @@ where
         // ヘッダを書き込み
         self.ser.write_bytes(&header[..header_size])?;
         // ヘッダ分のサイズを加算
-        self.ser.size += header_size;
+        self.ser.size += header_size as u64;
         Ok(())
     }
 }
@@ -641,7 +639,7 @@ where
         // ヘッダを書き込み
         self.ser.write_bytes(&header[..header_size])?;
         // ヘッダ分のサイズを加算
-        self.ser.size += header_size;
+        self.ser.size += header_size as u64;
         Ok(())
     }
 }
@@ -672,7 +670,7 @@ where
         // ヘッダを書き込み
         self.ser.write_bytes(&header[..header_size])?;
         // ヘッダ分のサイズを加算
-        self.ser.size += header_size;
+        self.ser.size += header_size as u64;
         Ok(())
     }
     
@@ -704,7 +702,7 @@ where
         let (array_header, array_header_size) = generate_header(prefix::ARRAY, seq_size);
         // seqヘッダを書き込み
         self.ser.write_bytes(&array_header[..array_header_size])?;
-        self.ser.size += array_header_size;
+        self.ser.size += array_header_size as u64;
         // mapのkeyをシリアライズ
         self.ser.serialize_str(self.variant_name.unwrap())?;
         // マップの合計サイズを計算
@@ -713,7 +711,7 @@ where
         let (object_header, object_header_size) = generate_header(prefix::OBJECT, map_size);
         // ヘッダを書き込み
         self.ser.write_bytes(&object_header[..object_header_size])?;
-        self.ser.size += object_header_size;
+        self.ser.size += object_header_size as u64;
         Ok(())
     }
 }
@@ -743,7 +741,7 @@ where
         let (array_header, array_header_size) = generate_header(prefix::ARRAY, seq_size);
         // seqヘッダを書き込み
         self.ser.write_bytes(&array_header[..array_header_size])?;
-        self.ser.size += array_header_size;
+        self.ser.size += array_header_size as u64;
         // mapのkeyをシリアライズ
         self.ser.serialize_str(self.variant_name.unwrap())?;
         // マップの合計サイズを計算
@@ -752,7 +750,7 @@ where
         let (object_header, object_header_size) = generate_header(prefix::OBJECT, map_size);
         // ヘッダを書き込み
         self.ser.write_bytes(&object_header[..object_header_size])?;
-        self.ser.size += object_header_size;
+        self.ser.size += object_header_size as u64;
         Ok(())
     }
     
@@ -806,7 +804,7 @@ where
         // ヘッダを書き込み
         self.ser.write_bytes(&header[..header_size])?;
         // ヘッダ分のサイズを加算
-        self.ser.size += header_size;
+        self.ser.size += header_size as u64;
         Ok(())
     }
 }
@@ -858,7 +856,7 @@ where
         // ヘッダを書き込み
         self.ser.write_bytes(&header[..header_size])?;
         // ヘッダ分のサイズを加算
-        self.ser.size += header_size;
+        self.ser.size += header_size as u64;
         Ok(())
     }
 }
@@ -892,7 +890,7 @@ where
         // ヘッダを書き込み
         self.ser.write_bytes(&header[..header_size])?;
         // ヘッダ分のサイズを加算
-        self.ser.size += header_size;
+        self.ser.size += header_size as u64;
         Ok(())
     }
 }
@@ -925,7 +923,7 @@ where
         // ヘッダを書き込み
         self.ser.write_bytes(&header[..header_size])?;
         // ヘッダ分のサイズを加算
-        self.ser.size += header_size;
+        self.ser.size += header_size as u64;
         Ok(())
     }
 }
@@ -959,7 +957,7 @@ where
         // structヘッダを書き込み
         self.ser.write_bytes(&header[..header_size])?;
         // ヘッダ分のサイズを加算
-        self.ser.size += header_size;
+        self.ser.size += header_size as u64;
         // mapのkeyをシリアライズ
         self.ser.serialize_str(self.variant_name.unwrap())?;
         // outer_structの合計サイズを計算
@@ -969,7 +967,7 @@ where
         // outer_structヘッダを書き込み
         self.ser.write_bytes(&outer_struct_header[..outer_struct_header_size])?;
         // ヘッダ分のサイズを加算
-        self.ser.size += outer_struct_header_size;
+        self.ser.size += outer_struct_header_size as u64;
         Ok(())
     }
 }
@@ -1002,7 +1000,7 @@ where
         // structヘッダを書き込み
         self.ser.write_bytes(&header[..header_size])?;
         // ヘッダ分のサイズを加算
-        self.ser.size += header_size;
+        self.ser.size += header_size as u64;
         // mapのkeyをシリアライズ
         self.ser.serialize_str(self.variant_name.unwrap())?;
         // outer_structの合計サイズを計算
@@ -1012,7 +1010,7 @@ where
         // outer_structヘッダを書き込み
         self.ser.write_bytes(&outer_struct_header[..outer_struct_header_size])?;
         // ヘッダ分のサイズを加算
-        self.ser.size += outer_struct_header_size;
+        self.ser.size += outer_struct_header_size as u64;
         Ok(())
     }
     
@@ -1025,22 +1023,22 @@ where
 /// 
 /// return: ([u8; 9], usize) // header, header size
 #[inline]
-pub fn generate_header(prefix: u8, size_of_byte: usize) -> ([u8; 9], usize) {
+pub fn generate_header(prefix: u8, size_of_byte: u64) -> ([u8; 9], usize) {
     let mut buf = [0u8; 9];
 
-    if size_of_byte <= u8::MAX as usize {
+    if size_of_byte <= u8::MAX as u64 {
         buf[0] = size_of_byte as u8;
         buf[1] = prefix | SIZE_PREFIX_1BYTE;
         return (buf, 2);
     }
 
-    if size_of_byte <= u16::MAX as usize {
+    if size_of_byte <= u16::MAX as u64 {
         buf[0..2].copy_from_slice(&(size_of_byte as u16).to_le_bytes());
         buf[2] = prefix | SIZE_PREFIX_2BYTE;
         return (buf, 3);
     }
 
-    if size_of_byte <= u32::MAX as usize {
+    if size_of_byte <= u32::MAX as u64 {
         buf[0..4].copy_from_slice(&(size_of_byte as u32).to_le_bytes());
         buf[4] = prefix | SIZE_PREFIX_4BYTE;
         return (buf, 5);

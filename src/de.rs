@@ -1,12 +1,6 @@
-use std::{f32::consts::E, io::{self, BufReader}};
-use serde_cbor::de::Read;
-use serde::{de, forward_to_deserialize_any};
+use std::{fs::File, io::{self, Error}};
 
-use serde_cbor::de::Deserializer;
 
-use crate::{error::{Error, ErrorCode}, traits::reader::Read, value::prefix::prefix};
-
-use crate::value::prefix::size_prefix::{SIZE_PREFIX_1BYTE, SIZE_PREFIX_2BYTE, SIZE_PREFIX_4BYTE, SIZE_PREFIX_8BYTE};
 
 
 /// RTON のデシリアライザ
@@ -17,74 +11,69 @@ use crate::value::prefix::size_prefix::{SIZE_PREFIX_1BYTE, SIZE_PREFIX_2BYTE, SI
 /// 楽に使うために変換できるように
 /// 
 pub struct ReverseDeserializer<R>
+where R: io::Read + io::Seek,
 {
-    reader: io::Cursor<R>,
-    deep: usize,
+    reader: R,
+    deep: u64,
 }
 
-impl ReverseDeserializer<Vec<u8>>
+impl ReverseDeserializer<io::Cursor<Vec<u8>>> 
 {
     pub fn from_vector(vec: Vec<u8>) -> Result<Self, Error> {
         let reader = io::Cursor::new(vec);
         Ok(Self { reader, deep: 0 })
     }
-}
 
-impl<R> ReverseDeserializer<R>
-{
-    pub fn new(reader: R) -> Result<Self, Error> {
-        let reader = io::Cursor::new(reader);
-        Ok(Self { reader, deep: 0 })
-    }
-
-    pub fn into_inner(self) -> R {
+    pub fn into_inner(self) -> Vec<u8> {
         self.reader.into_inner()
     }
 }
 
-impl<R> ReverseDeserializer<R> {
-    pub fn read_header() -> Result<(size, prefix_val), Error> {
+impl<'a> ReverseDeserializer<io::Cursor<&'a [u8]>> 
+{
+    pub fn from_slice(slice: &'a [u8]) -> Result<Self, Error> {
+        let reader = io::Cursor::new(slice);
+        Ok(Self { reader, deep: 0 })
+    }
 
+    pub fn into_inner(self) -> &'a [u8] {
+        self.reader.into_inner()
     }
 }
 
-impl<'de, 'a, R> de::Deserializer<'de> for &'a mut ReverseDeserializer<R>
-where
-    R: io::Read + io::Seek,
+impl ReverseDeserializer<File> 
 {
-    type Error = Error;
-
-    fn deserialize_any<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-    where
-        V: de::Visitor<'de> {
-        if self.eof() {
-            return visitor.visit_none();
-        }
-
-    }
-    
-    fn deserialize_i128<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-    where
-        V: de::Visitor<'de>,
-    {
-        let _ = visitor;
-        Err(de::Error::custom("i128 is not supported"))
-    }
-    
-    fn deserialize_u128<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-    where
-        V: de::Visitor<'de>,
-    {
-        let _ = visitor;
-        Err(de::Error::custom("u128 is not supported"))
+    pub fn from_file(file: File) -> Result<Self, Error> {
+        let reader = file;
+        Ok(Self { reader, deep: 0 })
     }
 
-    forward_to_deserialize_any! {
-        bool i8 i16 i32 i64 u8 u16 u32 u64 f32 f64 char str string bytes byte_buf option unit
-        unit_struct newtype_struct seq tuple tuple_struct map struct enum identifier ignored_any
+    pub fn into_inner(self) -> File {
+        self.reader
     }
-    
-    fn is_human_readable(&self) -> bool {
-        true
+}
+
+impl<R> ReverseDeserializer<R>
+where R: io::Read + io::Seek,
+{
+    pub fn new(reader: R) -> Result<Self, Error> {
+        Ok(Self { reader, deep: 0 })
+    }
+
+    pub fn now_pos(&mut self) -> Result<u64, Error> {
+        self.reader.stream_position()
+    }
+
+    pub fn get_size(reader: &mut R) -> io::Result<u64> {
+        let current = reader.stream_position()?;
+        let end = reader.seek(io::SeekFrom::End(0))?;
+        reader.seek(io::SeekFrom::Start(current))?;
+        Ok(end)
+    }
+
+    pub fn read_header(&mut self) -> Result<(u64, u8), Error> {
+        // ここでヘッダーを読み込む処理を実装する
+        let pos = self.reader.stream_position()?;
+        Ok((0, 0)) // 仮の実装
     }
 }
