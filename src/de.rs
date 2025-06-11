@@ -2,7 +2,7 @@ use std::{fs::File, io::{self, Read, Seek, SeekFrom}};
 
 use serde::{de::Visitor, Deserialize, Deserializer};
 
-use crate::{error::{Error, ErrorCode}, value::prefix::{prefix, size_prefix}};
+use crate::{error::{Error, ErrorCode}, traits::reader::{IOReader, Reader, SliceReader, VecReader}, value::prefix::{prefix, size_prefix}};
 
 
 
@@ -15,28 +15,16 @@ use crate::{error::{Error, ErrorCode}, value::prefix::{prefix, size_prefix}};
 /// 楽に使うために変換できるように
 /// 
 pub struct ReverseDeserializer<R>
-where R: io::Read + io::Seek,
+where R: Reader,
 {
     reader: R,
     deep: u64,
 }
 
-impl ReverseDeserializer<io::Cursor<Vec<u8>>> 
-{
-    pub fn from_vector(vec: Vec<u8>) -> Result<Self, io::Error> {
-        let reader = io::Cursor::new(vec);
-        Ok(Self { reader, deep: 0 })
-    }
-
-    pub fn into_inner(self) -> Vec<u8> {
-        self.reader.into_inner()
-    }
-}
-
-impl<'a> ReverseDeserializer<io::Cursor<&'a [u8]>> 
+impl<'a> ReverseDeserializer<SliceReader<'a>> 
 {
     pub fn from_slice(slice: &'a [u8]) -> Result<Self, io::Error> {
-        let reader = io::Cursor::new(slice);
+        let reader = SliceReader::new(slice);
         Ok(Self { reader, deep: 0 })
     }
 
@@ -45,20 +33,33 @@ impl<'a> ReverseDeserializer<io::Cursor<&'a [u8]>>
     }
 }
 
-impl ReverseDeserializer<File> 
+impl<'a> ReverseDeserializer<VecReader<'a>> 
+{
+    pub fn from_vec(vec: &'a Vec<u8>) -> Result<Self, io::Error> {
+        let reader = VecReader::new(vec);
+        Ok(Self { reader, deep: 0 })
+    }
+
+    pub fn into_inner(self) -> &'a Vec<u8> {
+        self.reader.into_inner()
+    }
+    
+}
+
+impl ReverseDeserializer<IOReader<File>> 
 {
     pub fn from_file(file: File) -> Result<Self,io:: Error> {
-        let reader = file;
+        let reader = IOReader::new(file);
         Ok(Self { reader, deep: 0 })
     }
 
     pub fn into_inner(self) -> File {
-        self.reader
+        self.reader.into_inner()
     }
 }
 
 impl<R> ReverseDeserializer<R>
-where R: io::Read + io::Seek,
+where R: Reader,
 {
     pub fn new(reader: R) -> Result<Self, io::Error> {
         Ok(Self { reader, deep: 0 })
@@ -84,47 +85,18 @@ where R: io::Read + io::Seek,
     /// seekを-9 byte分進めるので、データの開始位置のseekは手動で合わせる必要がある
     pub fn read_header(&mut self) -> Result<(u64, u8), io::Error> {
         // ヘッダーを読み込む処理
-        self.reader.seek(io::SeekFrom::Current(-9))?; // ヘッダーのサイズ分だけ後ろにシーク
-        // let pos = self.reader.stream_position()?; // pos は現在使用されていないためコメントアウトまたは削除
-        let mut header_buf = [0u8; 9]; // ヘッダーのサイズ (値8バイト + プレフィックス1バイト)
-        self.reader.read_exact(&mut header_buf)?;
-
-        let prefix_byte = header_buf[8];
-        // size_prefix::MASK が現在のスコープで定義されていると仮定します
-        // 例: const MASK: u8 = 0x03;
-        let size_indicator = prefix_byte & size_prefix::MASK;
-
-        let value: u64;
-        let mut value_bytes_le = [0u8; 8]; // u64 を表現するための8バイト配列 (リトルエンディアン)
-
-        match size_indicator {
-            0 => { // サイズが1バイトの場合 (header_buf[7] から取得)
-                value_bytes_le[0] = header_buf[7];
-                //残りのバイトは既に0で初期化されている
-                value = u64::from_le_bytes(value_bytes_le);
-            }
-            1 => { // サイズが2バイトの場合 (header_buf[6..8] から取得)
-                value_bytes_le[0..2].copy_from_slice(&header_buf[6..8]);
-                //残りのバイトは既に0で初期化されている
-                value = u64::from_le_bytes(value_bytes_le);
-            }
-            2 => { // サイズが4バイトの場合 (header_buf[4..8] から取得)
-                value_bytes_le[0..4].copy_from_slice(&header_buf[4..8]);
-                //残りのバイトは既に0で初期化されている
-                value = u64::from_le_bytes(value_bytes_le);
-            }
-            3 => { // サイズが8バイトの場合 (header_buf[0..8] から取得)
-                value_bytes_le.copy_from_slice(&header_buf[0..8]);
-                value = u64::from_le_bytes(value_bytes_le);
-            }
-            _ => {
-                // Error 型が io::Error から変換可能であるか、
-                // または io::Error と互換性があると仮定します。
-                // 必要に応じて .into() を追加してください。
-                return Err(io::Error::new(io::ErrorKind::InvalidData, "Invalid size prefix"));
+        let header = self.reader.prev()?;
+        if let Some(header) = header {
+            let size_prefix_val = header & size_prefix::MASK;
+            match size_prefix_val {
+                0 => Ok((header >> 8, header as u8)),
+                1 => Ok(((header >> 8) & 0xFFFF, header as u8)),
+                2 => Ok(((header >> 8) & 0xFFFFFFFF, header as u8)),
+                3 => Ok((header, header as u8)),
+                _ => Err(io::Error::new(io::ErrorKind::InvalidData, "Invalid size prefix")),
+                
             }
         }
-        Ok((value, prefix_byte))
     }
 }
 

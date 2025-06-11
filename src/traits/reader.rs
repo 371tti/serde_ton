@@ -14,6 +14,7 @@ use std::io::{Error, Read, Seek};
 /// 向こう側がバッファリングしている場合は考慮不要
 /// なのでサイズは指定しないで、適当にむこうが渡してくるデータ長でうまく処理できるようにするしかなさそう
 pub trait Reader: Read + Seek{
+    /// 次のバイトを読み込み、シーク位置を進めます
     fn next(&mut self) -> Result<Option<u8>, Error> {
         let mut buf = [0; 1];
         match self.read(&mut buf) {
@@ -26,6 +27,7 @@ pub trait Reader: Read + Seek{
         }
     }
 
+    /// 前のバイトを読み込み、シーク位置を戻します
     fn prev(&mut self) -> Result<Option<u8>, Error> {
         let mut buf = [0; 1];
         match self.read(&mut buf) {
@@ -38,6 +40,7 @@ pub trait Reader: Read + Seek{
         }
     }
 
+    /// 現在の位置のバイトを読み込み、シーク位置を戻します
     fn peek(&mut self) -> Result<Option<u8>, Error> {
         let mut buf = [0; 1];
         match self.read(&mut buf) {
@@ -67,13 +70,13 @@ impl<'a> SliceReader<'a> {
 }
 
 impl Read for SliceReader<'_> {
+    /// Readerの実装
     fn read(&mut self, buf: &mut [u8]) -> Result<usize, std::io::Error> {
         if self.pos >= self.slice.len() {
             return Ok(0); // EOF
         }
         let bytes_to_read = buf.len().min(self.slice.len() - self.pos);
         buf[..bytes_to_read].copy_from_slice(&self.slice[self.pos..self.pos + bytes_to_read]);
-        self.pos += bytes_to_read;
         Ok(bytes_to_read)
     }
 
@@ -82,7 +85,6 @@ impl Read for SliceReader<'_> {
             return Err(std::io::Error::new(std::io::ErrorKind::UnexpectedEof, "Not enough data to read"));
         }
         buf.copy_from_slice(&self.slice[self.pos..self.pos + buf.len()]);
-        self.pos += buf.len();
         Ok(())
     }
 }
@@ -154,5 +156,202 @@ impl Reader for SliceReader<'_> {
         }
         Ok(Some(self.slice[self.pos]))
     }
-    
+}
+
+pub struct VecReader<'a> {
+    vec: &'a Vec<u8>,
+    pos: usize,
+}
+
+impl<'a> VecReader<'a> {
+    pub fn new(vec: &'a Vec<u8>) -> Self {
+        Self { vec, pos: 0 }
+    }
+
+    pub fn into_inner(self) -> &'a Vec<u8> {
+        self.vec
+    }
+}
+
+impl Read for VecReader<'_> {
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize, std::io::Error> {
+        if self.pos >= self.vec.len() {
+            return Ok(0); // EOF
+        }
+        let bytes_to_read = buf.len().min(self.vec.len() - self.pos);
+        buf[..bytes_to_read].copy_from_slice(&self.vec[self.pos..self.pos + bytes_to_read]);
+        Ok(bytes_to_read)
+    }
+
+    fn read_exact(&mut self, buf: &mut [u8]) -> std::io::Result<()> {
+        if self.pos + buf.len() > self.vec.len() {
+            return Err(std::io::Error::new(std::io::ErrorKind::UnexpectedEof, "Not enough data to read"));
+        }
+        buf.copy_from_slice(&self.vec[self.pos..self.pos + buf.len()]);
+        Ok(())
+    }
+}
+
+impl Seek for VecReader<'_> {
+    fn seek(&mut self, pos: std::io::SeekFrom) -> std::io::Result<u64> {
+        let new_pos = match pos {
+            std::io::SeekFrom::Start(offset) => offset as usize,
+            std::io::SeekFrom::End(offset) => {
+                if offset < 0 {
+                    self.vec.len().checked_sub(-offset as usize).unwrap_or(0)
+                } else {
+                    self.vec.len().saturating_add(offset as usize)
+                }
+            }
+            std::io::SeekFrom::Current(offset) => {
+                if offset < 0 {
+                    self.pos.checked_sub(-offset as usize).unwrap_or(0)
+                } else {
+                    (self.pos + offset as usize).min(self.vec.len())
+                }
+            }
+        };
+        self.pos = new_pos;
+        Ok(self.pos as u64)
+    }
+
+    fn stream_position(&mut self) -> std::io::Result<u64> {
+        Ok(self.pos as u64)
+    }
+
+    fn rewind(&mut self) -> std::io::Result<()> {
+        self.pos = 0;
+        Ok(())
+    }
+
+    fn seek_relative(&mut self, offset: i64) -> std::io::Result<()> {
+        let new_pos = if offset < 0 {
+            self.pos.checked_sub(-offset as usize).unwrap_or(0)
+        } else {
+            (self.pos + offset as usize).min(self.vec.len())
+        };
+        self.pos = new_pos;
+        Ok(())
+    }
+}
+
+impl Reader for VecReader<'_> {
+    fn next(&mut self) -> Result<Option<u8>, Error> {
+        if self.pos >= self.vec.len() {
+            return Ok(None); // EOF
+        }
+        let byte = self.vec[self.pos];
+        self.pos += 1;
+        Ok(Some(byte))
+    }
+
+    fn prev(&mut self) -> Result<Option<u8>, Error> {
+        if self.pos == 0 {
+            return Ok(None); // EOF
+        }
+        self.pos -= 1;
+        Ok(Some(self.vec[self.pos]))
+    }
+
+    fn peek(&mut self) -> Result<Option<u8>, Error> {
+        if self.pos >= self.vec.len() {
+            return Ok(None); // EOF
+        }
+        Ok(Some(self.vec[self.pos]))
+    }
+}
+
+pub struct IOReader<R>
+where R: Read + Seek,
+{
+    reader: R,
+}
+
+impl<R> IOReader<R>
+where R: Read + Seek,
+{
+    pub fn new(reader: R) -> Self {
+        Self { reader }
+    }
+
+    pub fn into_inner(self) -> R {
+        self.reader
+    }
+}
+
+impl<R> Read for IOReader<R>
+where R: Read + Seek,
+{
+    #[inline]
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize, std::io::Error> {
+        self.reader.read(buf)
+    }
+
+    #[inline]
+    fn read_exact(&mut self, buf: &mut [u8]) -> std::io::Result<()> {
+        self.reader.read_exact(buf)
+    }      
+}
+
+impl<R> Seek for IOReader<R>
+where R: Read + Seek,
+{
+    #[inline]
+    fn seek(&mut self, pos: std::io::SeekFrom) -> std::io::Result<u64> {
+        self.reader.seek(pos)
+    }
+
+    #[inline]
+    fn stream_position(&mut self) -> std::io::Result<u64> {
+        self.reader.stream_position()
+    }
+
+    #[inline]
+    fn rewind(&mut self) -> std::io::Result<()> {
+        self.reader.rewind()
+    }
+
+    #[inline]
+    fn seek_relative(&mut self, offset: i64) -> std::io::Result<()> {
+        self.reader.seek_relative(offset)
+    }   
+}
+
+impl <R> Reader for IOReader<R>
+where R: Read + Seek,
+{
+    fn next(&mut self) -> Result<Option<u8>, Error> {
+        let mut buf = [0; 1];
+        match self.reader.read(&mut buf) {
+            Ok(0) => Ok(None), // EOF
+            Ok(_) => {
+                self.reader.seek(std::io::SeekFrom::Current(1))?;
+                Ok(Some(buf[0]))
+            },
+            Err(e) => Err(Error::new(e.kind(), format!("Read error: {}", e))),
+        }
+    }
+
+    fn prev(&mut self) -> Result<Option<u8>, Error> {
+        let mut buf = [0; 1];
+        match self.reader.read(&mut buf) {
+            Ok(0) => Ok(None), // EOF
+            Ok(_) => {
+                self.reader.seek(std::io::SeekFrom::Current(-1))?;
+                Ok(Some(buf[0]))
+            },
+            Err(e) => Err(Error::new(e.kind(), format!("Read error: {}", e))),
+        }
+    }
+
+    fn peek(&mut self) -> Result<Option<u8>, Error> {
+        let mut buf = [0; 1];
+        match self.reader.read(&mut buf) {
+            Ok(0) => Ok(None), // EOF
+            Ok(_) => {
+                Ok(Some(buf[0]))
+            },
+            Err(e) => Err(Error::new(e.kind(), format!("Read error: {}", e))),
+        }
+    }
 }
