@@ -85,7 +85,7 @@ where R: Reader,
     /// seekを-9 byte分進めるので、データの開始位置のseekは手動で合わせる必要がある
     pub fn read_header(&mut self) -> Result<(u64, u8), io::Error> {
         // ヘッダーを読み込む処理
-        let header = self.reader.prev()?;
+        let header = self.reader.peek()?;
         if let Some(header) = header {
             let size_prefix_val = header & size_prefix::MASK;
             match size_prefix_val {
