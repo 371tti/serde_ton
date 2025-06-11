@@ -134,7 +134,7 @@ where R: Reader,
 }
 
 impl<'de, R> Deserializer<'de> for ReverseDeserializer<R>
-where R: io::Read + io::Seek,
+where R: Reader,
 {
     type Error = Error;
 
