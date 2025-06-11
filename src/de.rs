@@ -80,22 +80,47 @@ where R: Reader,
         Ok(end)
     }
 
+    pub fn next(&mut self) -> Result<u8, io::Error> {
+        if let Some(i) = self.reader.peek()? {
+            Ok(i)
+        } else {
+            Err(io::Error::new(io::ErrorKind::UnexpectedEof, "No more data to read"))
+        }
+    }
+
+    pub fn prev(&mut self) -> Result<u8, io::Error> {
+        if let Some(i) = self.reader.prev()? {
+            Ok(i)
+        } else {
+            Err(io::Error::new(io::ErrorKind::UnexpectedEof, "No more data to read"))
+        }
+    }
+
+    pub fn peek(&mut self) -> Result<u8, io::Error> {
+        if let Some(i) = self.reader.peek()? {
+            Ok(i)
+        } else {
+            Err(io::Error::new(io::ErrorKind::UnexpectedEof, "No more data to read"))
+        }
+    }
+
     /// ヘッダーを読み込む
     /// # warnings
     /// seekを-9 byte分進めるので、データの開始位置のseekは手動で合わせる必要がある
     pub fn read_header(&mut self) -> Result<(u64, u8), io::Error> {
         // ヘッダーを読み込む処理
-        let header = self.reader.peek()?;
-        if let Some(header) = header {
+        let header = self.peek()?;
             let size_prefix_val = header & size_prefix::MASK;
             match size_prefix_val {
-                0 => Ok((header >> 8, header as u8)),
+                0 => {
+                    let size = self.reader.prev()?;
+                    if 
+                },
                 1 => Ok(((header >> 8) & 0xFFFF, header as u8)),
                 2 => Ok(((header >> 8) & 0xFFFFFFFF, header as u8)),
                 3 => Ok((header, header as u8)),
                 _ => Err(io::Error::new(io::ErrorKind::InvalidData, "Invalid size prefix")),
                 
-            }
         }
     }
 }
