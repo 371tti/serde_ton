@@ -49,6 +49,12 @@ pub trait Reader: Read + Seek{
         }
     }
 
+    fn read_u8(&mut self) -> Result<u8, Error> {
+        let mut buf = [0; 1];
+        self.read_exact(&mut buf)?;
+        Ok(buf[0])
+    }
+
     fn read_u16(&mut self) -> Result<u16, Error> {
         let mut buf = [0; 2];
         self.read_exact(&mut buf)?;
@@ -60,7 +66,7 @@ pub trait Reader: Read + Seek{
         self.read_exact(&mut buf)?;
         Ok(u32::from_le_bytes(buf))
     }
-
+    
     fn read_u64(&mut self) -> Result<u64, Error> {
         let mut buf = [0; 8];
         self.read_exact(&mut buf)?;

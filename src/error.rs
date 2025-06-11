@@ -157,6 +157,12 @@ impl Debug for Error {
     }
 }
 
+impl From<std::io::Error> for Error {
+    fn from(err: std::io::Error) -> Self {
+        Error::io(err)
+    }
+}
+
 impl serde::de::StdError for Error {}
 
 impl Display for Error {
