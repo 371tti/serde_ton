@@ -1,6 +1,8 @@
-use std::{fs::File, io::{self, Error}};
+use std::{fs::File, io::{self, Read, Seek, SeekFrom}};
 
-use crate::value::prefix::{prefix, size_prefix};
+use serde::{de::Visitor, Deserialize, Deserializer};
+
+use crate::{error::{Error, ErrorCode}, value::prefix::{prefix, size_prefix}};
 
 
 
@@ -21,7 +23,7 @@ where R: io::Read + io::Seek,
 
 impl ReverseDeserializer<io::Cursor<Vec<u8>>> 
 {
-    pub fn from_vector(vec: Vec<u8>) -> Result<Self, Error> {
+    pub fn from_vector(vec: Vec<u8>) -> Result<Self, io::Error> {
         let reader = io::Cursor::new(vec);
         Ok(Self { reader, deep: 0 })
     }
@@ -33,7 +35,7 @@ impl ReverseDeserializer<io::Cursor<Vec<u8>>>
 
 impl<'a> ReverseDeserializer<io::Cursor<&'a [u8]>> 
 {
-    pub fn from_slice(slice: &'a [u8]) -> Result<Self, Error> {
+    pub fn from_slice(slice: &'a [u8]) -> Result<Self, io::Error> {
         let reader = io::Cursor::new(slice);
         Ok(Self { reader, deep: 0 })
     }
@@ -45,7 +47,7 @@ impl<'a> ReverseDeserializer<io::Cursor<&'a [u8]>>
 
 impl ReverseDeserializer<File> 
 {
-    pub fn from_file(file: File) -> Result<Self, Error> {
+    pub fn from_file(file: File) -> Result<Self,io:: Error> {
         let reader = file;
         Ok(Self { reader, deep: 0 })
     }
@@ -58,12 +60,16 @@ impl ReverseDeserializer<File>
 impl<R> ReverseDeserializer<R>
 where R: io::Read + io::Seek,
 {
-    pub fn new(reader: R) -> Result<Self, Error> {
+    pub fn new(reader: R) -> Result<Self, io::Error> {
         Ok(Self { reader, deep: 0 })
     }
 
-    pub fn now_pos(&mut self) -> Result<u64, Error> {
+    pub fn now_pos(&mut self) -> Result<u64, io::Error> {
         self.reader.stream_position()
+    }
+
+    pub fn rev_seek(&mut self, pos: i64) -> Result<u64, io::Error> {
+        self.reader.seek(io::SeekFrom::End(pos))
     }
 
     pub fn get_size(reader: &mut R) -> io::Result<u64> {
@@ -73,8 +79,12 @@ where R: io::Read + io::Seek,
         Ok(end)
     }
 
-    pub fn read_header(&mut self) -> Result<(u64, u8), Error> {
+    /// ヘッダーを読み込む
+    /// # warnings
+    /// seekを-9 byte分進めるので、データの開始位置のseekは手動で合わせる必要がある
+    pub fn read_header(&mut self) -> Result<(u64, u8), io::Error> {
         // ヘッダーを読み込む処理
+        self.reader.seek(io::SeekFrom::Current(-9))?; // ヘッダーのサイズ分だけ後ろにシーク
         // let pos = self.reader.stream_position()?; // pos は現在使用されていないためコメントアウトまたは削除
         let mut header_buf = [0u8; 9]; // ヘッダーのサイズ (値8バイト + プレフィックス1バイト)
         self.reader.read_exact(&mut header_buf)?;
@@ -117,4 +127,231 @@ where R: io::Read + io::Seek,
         Ok((value, prefix_byte))
     }
 }
-// ...existing code...
+
+impl<'de, R> Deserializer<'de> for ReverseDeserializer<R>
+where R: io::Read + io::Seek,
+{
+    type Error = Error;
+
+    fn deserialize_any<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        // ここでデシリアライズのロジックを実装
+        // 例: visitor.visit_i64(42)
+        Err(serde::de::Error::custom("deserialize_any is not implemented"))
+    }
+
+    fn deserialize_i128<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: serde::de::Visitor<'de>,
+    {
+        let _ = visitor;
+        Err(serde::de::Error::custom("i128 is not supported"))
+    }
+    
+    fn deserialize_u128<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: serde::de::Visitor<'de>,
+    {
+        let _ = visitor;
+        Err(serde::de::Error::custom("u128 is not supported"))
+    }
+    
+    fn is_human_readable(&self) -> bool {
+        true
+    }
+    
+    fn deserialize_bool<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de> {
+        todo!()
+    }
+    
+    fn deserialize_i8<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de> {
+        todo!()
+    }
+    
+    fn deserialize_i16<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de> {
+        todo!()
+    }
+    
+    fn deserialize_i32<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de> {
+        todo!()
+    }
+    
+    fn deserialize_i64<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de> {
+        todo!()
+    }
+    
+    fn deserialize_u8<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de> {
+        todo!()
+    }
+    
+    fn deserialize_u16<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de> {
+        todo!()
+    }
+    
+    fn deserialize_u32<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de> {
+        todo!()
+    }
+    
+    fn deserialize_u64<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de> {
+        todo!()
+    }
+    
+    fn deserialize_f32<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de> {
+        todo!()
+    }
+    
+    fn deserialize_f64<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de> {
+        todo!()
+    }
+    
+    fn deserialize_char<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de> {
+        todo!()
+    }
+    
+    fn deserialize_str<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de> {
+        todo!()
+    }
+    
+    fn deserialize_string<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de> {
+        todo!()
+    }
+    
+    fn deserialize_bytes<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de> {
+        todo!()
+    }
+    
+    fn deserialize_byte_buf<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de> {
+        todo!()
+    }
+    
+    fn deserialize_option<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de> {
+        todo!()
+    }
+    
+    fn deserialize_unit<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de> {
+        todo!()
+    }
+    
+    fn deserialize_unit_struct<V>(
+        self,
+        name: &'static str,
+        visitor: V,
+    ) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de> {
+        todo!()
+    }
+    
+    fn deserialize_newtype_struct<V>(
+        self,
+        name: &'static str,
+        visitor: V,
+    ) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de> {
+        todo!()
+    }
+    
+    fn deserialize_seq<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de> {
+        todo!()
+    }
+    
+    fn deserialize_tuple<V>(self, len: usize, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de> {
+        todo!()
+    }
+    
+    fn deserialize_tuple_struct<V>(
+        self,
+        name: &'static str,
+        len: usize,
+        visitor: V,
+    ) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de> {
+        todo!()
+    }
+    
+    fn deserialize_map<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de> {
+        todo!()
+    }
+    
+    fn deserialize_struct<V>(
+        self,
+        name: &'static str,
+        fields: &'static [&'static str],
+        visitor: V,
+    ) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de> {
+        todo!()
+    }
+    
+    fn deserialize_enum<V>(
+        self,
+        name: &'static str,
+        variants: &'static [&'static str],
+        visitor: V,
+    ) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de> {
+        todo!()
+    }
+    
+    fn deserialize_identifier<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de> {
+        todo!()
+    }
+    
+    fn deserialize_ignored_any<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de> {
+        todo!()
+    }
+    
+    // 他の必要なメソッドを実装
+}

@@ -1,4 +1,4 @@
-use std::io::Error;
+use std::io::{Error, Read, Seek};
 
 /// Read トレイとの実装
 /// 必要機能
@@ -13,19 +13,146 @@ use std::io::Error;
 /// 糞でかい場合シンプルにメモリを食う
 /// 向こう側がバッファリングしている場合は考慮不要
 /// なのでサイズは指定しないで、適当にむこうが渡してくるデータ長でうまく処理できるようにするしかなさそう
-pub trait Read<'a> {
-    /// seek 位置を指定する
-    fn seek(&mut self, pos: FromSeek);
-    /// データのスライスの参照を返す 長さは任意でok
-    /// ## returns
-    /// - `(&[u8], u64)` - スライスとその長さ
-    fn read_ref(&mut self) -> Result<(&'a [u8], u64), Error>;
-    /// データのサイズとる
-    fn size(&self) -> u64;
+pub trait Reader: Read + Seek{
+    fn next(&mut self) -> Result<Option<u8>, Error> {
+        let mut buf = [0; 1];
+        match self.read(&mut buf) {
+            Ok(0) => Ok(None), // EOF
+            Ok(_) => {
+                self.seek(std::io::SeekFrom::Current(1))?;
+                Ok(Some(buf[0]))
+            },
+            Err(e) => Err(Error::new(e.kind(), format!("Read error: {}", e))),
+        }
+    }
+
+    fn prev(&mut self) -> Result<Option<u8>, Error> {
+        let mut buf = [0; 1];
+        match self.read(&mut buf) {
+            Ok(0) => Ok(None), // EOF
+            Ok(_) => {
+                self.seek(std::io::SeekFrom::Current(-1))?;
+                Ok(Some(buf[0]))
+            },
+            Err(e) => Err(Error::new(e.kind(), format!("Read error: {}", e))),
+        }
+    }
+
+    fn peek(&mut self) -> Result<Option<u8>, Error> {
+        let mut buf = [0; 1];
+        match self.read(&mut buf) {
+            Ok(0) => Ok(None), // EOF
+            Ok(_) => {
+                self.seek(std::io::SeekFrom::Current(-1))?;
+                Ok(Some(buf[0]))
+            },
+            Err(e) => Err(Error::new(e.kind(), format!("Read error: {}", e))),
+        }
+    }
 }
 
-pub enum FromSeek {
-    Start(u64),
-    End(i64),
-    Current(i64),
+pub struct SliceReader<'a> {
+    slice: &'a [u8],
+    pos: usize,
+}
+
+impl<'a> SliceReader<'a> {
+    pub fn new(slice: &'a [u8]) -> Self {
+        Self { slice, pos: 0 }
+    }
+
+    pub fn into_inner(self) -> &'a [u8] {
+        self.slice
+    }
+}
+
+impl Read for SliceReader<'_> {
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize, std::io::Error> {
+        if self.pos >= self.slice.len() {
+            return Ok(0); // EOF
+        }
+        let bytes_to_read = buf.len().min(self.slice.len() - self.pos);
+        buf[..bytes_to_read].copy_from_slice(&self.slice[self.pos..self.pos + bytes_to_read]);
+        self.pos += bytes_to_read;
+        Ok(bytes_to_read)
+    }
+
+    fn read_exact(&mut self, buf: &mut [u8]) -> std::io::Result<()> {
+        if self.pos + buf.len() > self.slice.len() {
+            return Err(std::io::Error::new(std::io::ErrorKind::UnexpectedEof, "Not enough data to read"));
+        }
+        buf.copy_from_slice(&self.slice[self.pos..self.pos + buf.len()]);
+        self.pos += buf.len();
+        Ok(())
+    }
+}
+
+impl Seek for SliceReader<'_> {
+    fn seek(&mut self, pos: std::io::SeekFrom) -> std::io::Result<u64> {
+        let new_pos = match pos {
+            std::io::SeekFrom::Start(offset) => offset as usize,
+            std::io::SeekFrom::End(offset) => {
+                if offset < 0 {
+                    self.slice.len().checked_sub(-offset as usize).unwrap_or(0)
+                } else {
+                    self.slice.len().saturating_add(offset as usize)
+                }
+            }
+            std::io::SeekFrom::Current(offset) => {
+                if offset < 0 {
+                    self.pos.checked_sub(-offset as usize).unwrap_or(0)
+                } else {
+                    (self.pos + offset as usize).min(self.slice.len())
+                }
+            }
+        };
+        self.pos = new_pos;
+        Ok(self.pos as u64)
+    }
+
+    fn stream_position(&mut self) -> std::io::Result<u64> {
+        Ok(self.pos as u64)
+    }
+
+    fn rewind(&mut self) -> std::io::Result<()> {
+        self.pos = 0;
+        Ok(())
+    }
+
+    fn seek_relative(&mut self, offset: i64) -> std::io::Result<()> {
+        let new_pos = if offset < 0 {
+            self.pos.checked_sub(-offset as usize).unwrap_or(0)
+        } else {
+            (self.pos + offset as usize).min(self.slice.len())
+        };
+        self.pos = new_pos;
+        Ok(())
+    }
+}
+
+impl Reader for SliceReader<'_> {
+    fn next(&mut self) -> Result<Option<u8>, Error> {
+        if self.pos >= self.slice.len() {
+            return Ok(None); // EOF
+        }
+        let byte = self.slice[self.pos];
+        self.pos += 1;
+        Ok(Some(byte))
+    }
+
+    fn prev(&mut self) -> Result<Option<u8>, Error> {
+        if self.pos == 0 {
+            return Ok(None); // EOF
+        }
+        self.pos -= 1;
+        Ok(Some(self.slice[self.pos]))
+    }
+
+    fn peek(&mut self) -> Result<Option<u8>, Error> {
+        if self.pos >= self.slice.len() {
+            return Ok(None); // EOF
+        }
+        Ok(Some(self.slice[self.pos]))
+    }
+    
 }

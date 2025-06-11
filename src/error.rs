@@ -11,6 +11,15 @@ pub struct Error {
 pub type Result<T> = result::Result<T, Error>;
 
 impl Error {
+    pub fn new(code: ErrorCode, pos: usize) -> Self {
+        Error {
+            err: Box::new(ErrorImpl {
+                code,
+                pos,
+            }),
+        }
+    }
+
     pub fn pos(&self) -> usize {
         self.err.pos
     }
@@ -21,6 +30,16 @@ impl Error {
             ErrorCode::Io(_) => Category::Io,
             ErrorCode::NotFoundTarget => Category::Syntax,
             ErrorCode::InvalidType => Category::InvalidType,
+            ErrorCode::Other(str) => {
+                // 適当
+                if str.contains("EOF") || str.contains("eof") {
+                    Category::Eof
+                } else if str.contains("unknown format") {
+                    Category::UnknownFormat
+                } else {
+                    Category::Syntax
+                }
+            }
         }
     }
 
@@ -56,6 +75,7 @@ pub(crate) enum ErrorCode {
     Io(io::Error),
     NotFoundTarget,
     InvalidType,
+    Other(String),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -121,6 +141,7 @@ impl Display for ErrorCode {
             ErrorCode::Io(err) => Display::fmt(err, f),
             ErrorCode::NotFoundTarget => f.write_str("Target not found"),
             ErrorCode::InvalidType => f.write_str("Invalid type"),
+            ErrorCode::Other(msg) => f.write_str(msg),
         }
     }
 }
