@@ -105,7 +105,30 @@ impl<'de, R> ReverseDeserializer<R>
 where
     R: Reader,
 {
-    fn perse_value<V>(&mut self, visitor: V) -> Result<V::Value, Error>
+    fn get_size_8(&mut self) -> Result<u8, Error> {
+        let size = self.prev()?;
+        Ok(size)
+    }
+
+    fn get_size_16(&mut self) -> Result<u16, Error> {
+        self.reader.seek(io::SeekFrom::Current(-2))?; // 2 byte戻す
+        let size = self.reader.read_u16()?;
+        Ok(size)
+    }
+
+    fn get_size_32(&mut self) -> Result<u32, Error> {
+        self.reader.seek(io::SeekFrom::Current(-4))?; // 4 byte戻す
+        let size = self.reader.read_u32()?;
+        Ok(size)
+    }
+
+    fn get_size_64(&mut self) -> Result<u64, Error> {
+        self.reader.seek(io::SeekFrom::Current(-8))?; // 8 byte戻す
+        let size = self.reader.read_u64()?;
+        Ok(size)
+    }
+
+    fn parse_value<V>(&mut self, visitor: V) -> Result<V::Value, Error>
     where
         V: Visitor<'de>,
     {
@@ -224,74 +247,101 @@ where
                 let as_u64_val = self.reader.read_u64()?;
                 return visitor.visit_f64(f64::from_bits(as_u64_val));
             },
-            STRING8 => {},
-            STRING16 => {},
-            STRING32 => {},
-            STRING64 => {},
-            BYTES8 => {},
-            BYTES16 => {},
-            BYTES32 => {},
-            BYTES64 => {},
+            STRING8 => {
+                let size = self.get_size_8()?;
+                let mut buf: Vec<u8> = vec![0; size as usize];
+
+                visitor.s
+            },
+            STRING16 => {
+                let size = self.get_size_16()?;
+            },
+            STRING32 => {
+                let size = self.get_size_32()?;
+            },
+            STRING64 => {
+                let size = self.get_size_64()?;
+            },
+            BYTES8 => {
+                let size = self.get_size_8()?;
+            },
+            BYTES16 => {
+                let size = self.get_size_16()?;
+            },
+            BYTES32 => {
+                let size = self.get_size_32()?;
+            },
+            BYTES64 => {
+                let size = self.get_size_64()?;
+            },
             UUID => {},
             DATETIME => {},
             TIMESTAMP => {},
             DURATION => {},
-            ARRAY8 => {},
-            ARRAY16 => {},
-            ARRAY32 => {},
-            ARRAY64 => {},
-            OBJECT8 => {},
-            OBJECT16 => {},
-            OBJECT32 => {},
-            OBJECT64 => {},
-            WRAPPED_JSON8 => {},
-            WRAPPED_JSON16 => {},
-            WRAPPED_JSON32 => {},
-            WRAPPED_JSON64 => {},
-            META8 => {},
-            META16 => {},
-            META32 => {},
-            META64 => {},
-            PADDING8 => {},
-            PADDING16 => {},
-            PADDING32 => {},
-            PADDING64 => {},
+            ARRAY8 => {
+                let size = self.get_size_8()?;
+            },
+            ARRAY16 => {
+                let size = self.get_size_16()?;
+            },
+            ARRAY32 => {
+                let size = self.get_size_32()?;
+            },
+            ARRAY64 => {
+                let size = self.get_size_64()?;
+            },
+            OBJECT8 => {
+                let size = self.get_size_8()?;
+            },
+            OBJECT16 => {
+                let size = self.get_size_16()?;
+            },
+            OBJECT32 => {
+                let size = self.get_size_32()?;
+            },
+            OBJECT64 => {
+                let size = self.get_size_64()?
+            },
+            WRAPPED_JSON8 => {
+                let size = self.get_size_8()?;
+            },
+            WRAPPED_JSON16 => {
+                let size = self.get_size_16()?;
+            },
+            WRAPPED_JSON32 => {
+                let size = self.get_size_32()?;
+            },
+            WRAPPED_JSON64 => {
+                let size = self.get_size_64()?;
+            },
+            META8 => {
+                let size = self.get_size_8()?;
+            },
+            META16 => {
+                let size = self.get_size_16()?;
+            },
+            META32 => {
+                let size = self.get_size_32()?;
+            },
+            META64 => {
+                let size = self.get_size_64()?;
+            },
+            PADDING8 => {
+                let size = self.get_size_8()?;
+            },
+            PADDING16 => {
+                let size = self.get_size_16()?;
+            },
+            PADDING32 => {
+                let size = self.get_size_32()?;
+            },
+            PADDING64 => {
+                let size = self.get_size_64()?;
+            },
             _ => {
                 let pos = self.now_pos()?;
                 Err(Error::new(ErrorCode::InvalidType, pos as usize))
             },
-        }
-    }
-
-    /// ヘッダーを読み込む
-    /// # warnings
-    /// seekを-9 byte分進めるので、データの開始位置のseekは手動で合わせる必要がある
-    pub fn read_header(&mut self) -> Result<(u64, u8), io::Error> {
-        // ヘッダーを読み込む処理
-        let header = self.peek()?;
-        let size_prefix_val = header & size_prefix::MASK;
-        match size_prefix_val {
-            0 => {
-                let size = self.prev()?;
-                Ok((size as u64, header))
-            },
-            1 => {
-                self.reader.seek(io::SeekFrom::Current(-2))?;
-                let header = self.reader.read_u16()?;
-                Ok((header as u64, header as u8))
-            },
-            2 => {
-                self.reader.seek(io::SeekFrom::Current(-4))?;
-                let header = self.reader.read_u32()?;
-                Ok((header as u64, header as u8))
-            },
-            3 => {
-                self.reader.seek(io::SeekFrom::Current(-8))?;
-                let header = self.reader.read_u64()?;
-                Ok((header, header as u8))
-            },
-            _ => Err(io::Error::new(io::ErrorKind::InvalidData, "Invalid size prefix")),
-                
         }
     }
 }
