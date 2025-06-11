@@ -14,30 +14,27 @@ use std::io::{Error, Read, Seek};
 /// 向こう側がバッファリングしている場合は考慮不要
 /// なのでサイズは指定しないで、適当にむこうが渡してくるデータ長でうまく処理できるようにするしかなさそう
 pub trait Reader: Read + Seek{
-    /// 次のバイトを読み込み、シーク位置を進めます
+    /// 次のバイトを読み込み、シーク位置を1バイト進めます
+    /// seekに失敗した場合 seekの位置を戻しません
     fn next(&mut self) -> Result<Option<u8>, Error> {
-        let mut buf = [0; 1];
-        match self.read(&mut buf) {
-            Ok(0) => Ok(None), // EOF
-            Ok(_) => {
-                self.seek(std::io::SeekFrom::Current(1))?;
-                Ok(Some(buf[0]))
-            },
-            Err(e) => Err(Error::new(e.kind(), format!("Read error: {}", e))),
+        let res = self.peek()?;
+        if let Some(_) = res {
+            // 1バイト進めてみて、範囲外なら元に戻す
+            let pos = self.stream_position()?;
+            self.seek(std::io::SeekFrom::Current(1))?;
         }
+        Ok(res)
     }
 
-    /// 前のバイトを読み込み、シーク位置を戻します
+    /// 前のバイトを読み込み、シークを現在から負の方向に1バイト進めます
+    /// seekに失敗した場合 seekの位置を戻しません
     fn prev(&mut self) -> Result<Option<u8>, Error> {
-        let mut buf = [0; 1];
-        match self.read(&mut buf) {
-            Ok(0) => Ok(None), // EOF
-            Ok(_) => {
-                self.seek(std::io::SeekFrom::Current(-1))?;
-                Ok(Some(buf[0]))
-            },
-            Err(e) => Err(Error::new(e.kind(), format!("Read error: {}", e))),
+        if self.stream_position()? == 0 {
+            return Ok(None); // すでに先頭なので戻れない
         }
+        self.seek(std::io::SeekFrom::Current(-1))?;
+        let res = self.peek()?;
+        Ok(res)
     }
 
     /// 現在の位置のバイトを読み込み、シーク位置を戻します
@@ -46,11 +43,28 @@ pub trait Reader: Read + Seek{
         match self.read(&mut buf) {
             Ok(0) => Ok(None), // EOF
             Ok(_) => {
-                self.seek(std::io::SeekFrom::Current(-1))?;
                 Ok(Some(buf[0]))
             },
             Err(e) => Err(Error::new(e.kind(), format!("Read error: {}", e))),
         }
+    }
+
+    fn read_u16(&mut self) -> Result<u16, Error> {
+        let mut buf = [0; 2];
+        self.read_exact(&mut buf)?;
+        Ok(u16::from_le_bytes(buf))
+    }
+
+    fn read_u32(&mut self) -> Result<u32, Error> {
+        let mut buf = [0; 4];
+        self.read_exact(&mut buf)?;
+        Ok(u32::from_le_bytes(buf))
+    }
+
+    fn read_u64(&mut self) -> Result<u64, Error> {
+        let mut buf = [0; 8];
+        self.read_exact(&mut buf)?;
+        Ok(u64::from_le_bytes(buf))
     }
 }
 
@@ -333,11 +347,17 @@ where R: Read + Seek,
     }
 
     fn prev(&mut self) -> Result<Option<u8>, Error> {
+        let pos = self.reader.stream_position()?;
+        if pos == 0 {
+            return Ok(None); // すでに先頭なので戻れない
+        }
+        self.reader.seek(std::io::SeekFrom::Current(-1))?;
         let mut buf = [0; 1];
         match self.reader.read(&mut buf) {
-            Ok(0) => Ok(None), // EOF
+            Ok(0) => {
+                Ok(None)
+            },
             Ok(_) => {
-                self.reader.seek(std::io::SeekFrom::Current(-1))?;
                 Ok(Some(buf[0]))
             },
             Err(e) => Err(Error::new(e.kind(), format!("Read error: {}", e))),

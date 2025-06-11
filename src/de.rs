@@ -69,10 +69,6 @@ where R: Reader,
         self.reader.stream_position()
     }
 
-    pub fn rev_seek(&mut self, pos: i64) -> Result<u64, io::Error> {
-        self.reader.seek(io::SeekFrom::End(pos))
-    }
-
     pub fn get_size(reader: &mut R) -> io::Result<u64> {
         let current = reader.stream_position()?;
         let end = reader.seek(io::SeekFrom::End(0))?;
@@ -110,16 +106,28 @@ where R: Reader,
     pub fn read_header(&mut self) -> Result<(u64, u8), io::Error> {
         // ヘッダーを読み込む処理
         let header = self.peek()?;
-            let size_prefix_val = header & size_prefix::MASK;
-            match size_prefix_val {
-                0 => {
-                    let size = self.reader.prev()?;
-                    if 
-                },
-                1 => Ok(((header >> 8) & 0xFFFF, header as u8)),
-                2 => Ok(((header >> 8) & 0xFFFFFFFF, header as u8)),
-                3 => Ok((header, header as u8)),
-                _ => Err(io::Error::new(io::ErrorKind::InvalidData, "Invalid size prefix")),
+        let size_prefix_val = header & size_prefix::MASK;
+        match size_prefix_val {
+            0 => {
+                let size = self.prev()?;
+                Ok((size as u64, header))
+            },
+            1 => {
+                self.reader.seek(io::SeekFrom::Current(-2))?;
+                let header = self.reader.read_u16()?;
+                Ok((header as u64, header as u8))
+            },
+            2 => {
+                self.reader.seek(io::SeekFrom::Current(-4))?;
+                let header = self.reader.read_u32()?;
+                Ok((header as u64, header as u8))
+            },
+            3 => {
+                self.reader.seek(io::SeekFrom::Current(-8))?;
+                let header = self.reader.read_u64()?;
+                Ok((header, header as u8))
+            },
+            _ => Err(io::Error::new(io::ErrorKind::InvalidData, "Invalid size prefix")),
                 
         }
     }
